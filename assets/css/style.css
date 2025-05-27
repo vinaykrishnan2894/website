@@ -222,6 +222,7 @@ header.scrolled {
   color: var(--light-text);
   border-radius: var(--border-radius) var(--border-radius) 0 0;
   padding-top: 60px;
+  padding-bottom: 80px; 
 }
 
 .project-grid {
