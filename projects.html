@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projects - Vinay Krishnan</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/responsive.css">
+    <style>
+        /* Additional styles for projects page */
+        .page-header {
+            background-color: var(--card-bg);
+            color: var(--light-text);
+            padding: 120px 0 60px;
+            text-align: center;
+            border-radius: 0 0 var(--border-radius) var(--border-radius);
+        }
+        
+        .filter-container {
+            display: flex;
+            justify-content: center;
+            margin: 40px 0;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .filter-btn {
+            background-color: transparent;
+            border: 2px solid var(--primary-color);
+            color: var(--text-color);
+            padding: 8px 20px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 500;
+            transition: var(--transition);
+        }
+        
+        .filter-btn.active, .filter-btn:hover {
+            background-color: var(--primary-color);
+            color: var(--light-text);
+        }
+        
+        .project-details {
+            padding: 80px 0;
+        }
+        
+        .project-details-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            align-items: center;
+        }
+        
+        .project-details-image {
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .project-details-image img {
+            width: 100%;
+            height: auto;
+        }
+        
+        .project-details-content h3 {
+            font-size: 2rem;
+            margin-bottom: 20px;
+        }
+        
+        .project-details-content p {
+            margin-bottom: 20px;
+            opacity: 0.9;
+        }
+        
+        .project-meta {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .project-meta-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .project-meta-label {
+            font-size: 0.9rem;
+            opacity: 0.7;
+            margin-bottom: 5px;
+        }
+        
+        .project-meta-value {
+            font-weight: 600;
+        }
+        
+        .project-details-list {
+            margin: 20px 0;
+        }
+        
+        .project-details-list li {
+            margin-bottom: 10px;
+            position: relative;
+            padding-left: 25px;
+        }
+        
+        .project-details-list li:before {
+            content: '•';
+            color: var(--primary-color);
+            position: absolute;
+            left: 0;
+            font-size: 1.5rem;
+        }
+        
+        @media (max-width: 767.98px) {
+            .project-details-container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="container">
+            <nav class="navbar">
+                <a href="index.html" class="logo">VK</a>
+                <ul class="nav-menu">
+                    <li class="nav-item"><a href="index.html" class="nav-link">Home</a></li>
+                    <li class="nav-item"><a href="projects.html" class="nav-link active">Projects</a></li>
+                    <li class="nav-item"><a href="blogs.html" class="nav-link">Blogs</a></li>
+                    <li class="nav-item"><a href="contact.html" class="nav-link">Contact</a></li>
+                    <li class="nav-item"><a href="/home/ubuntu/upload/Vinay_Krishnan_Resume.pdf" class="nav-link" target="_blank">Resume</a></li>
+                </ul>
+                <div class="hamburger">
+                    <i class="fas fa-bars"></i>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Page Header -->
+    <section class="page-header">
+        <div class="container">
+            <h1 class="section-title">My <span>Projects</span></h1>
+            <p>Explore my work and case studies</p>
+        </div>
+    </section>
+
+    <!-- Projects Filter -->
+    <div class="container">
+        <div class="filter-container">
+            <button class="filter-btn active" data-filter="all">All</button>
+            <button class="filter-btn" data-filter="streaming">Streaming</button>
+            <button class="filter-btn" data-filter="gaming">Gaming</button>
+            <button class="filter-btn" data-filter="analytics">Analytics</button>
+        </div>
+    </div>
+
+    <!-- Projects Grid -->
+    <section class="section">
+        <div class="container">
+            <div class="project-grid">
+                <!-- Loco Studio Project -->
+                <div class="project-card streaming">
+                    <div class="project-image">
+                        <img src="assets/images/project-images/loco-project.jpg" alt="Loco Studio">
+                    </div>
+                    <div class="project-content">
+                        <h3 class="project-title">Loco Studio</h3>
+                        <p class="project-description">Developed a streaming platform for creators to manage their Loco channels, track performance, and optimize content.</p>
+                        <a href="#loco-studio" class="project-link">View Details <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                </div>
+
+                <!-- Cricket.com Project -->
+                <div class="project-card gaming">
+                    <div class="project-image">
+                        <img src="assets/images/project-images/cricket-project.jpg" alt="Cricket.com">
+                    </div>
+                    <div class="project-content">
+                        <h3 class="project-title">Cricket.com</h3>
+                        <p class="project-description">Enhanced user journey and onboarding experience to boost funnel conversions for Cricket.com's RMG application.</p>
+                        <a href="#cricket-com" class="project-link">View Details <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                </div>
+
+                <!-- Streamer Dashboard Project -->
+                <div class="project-card analytics streaming">
+                    <div class="project-image">
+                        <img src="assets/images/project-images/dashboard-project.jpg" alt="Streamer Dashboard">
+                    </div>
+                    <div class="project-content">
+                        <h3 class="project-title">Streamer Dashboard</h3>
+                        <p class="project-description">Created an analytics platform for content creators to monitor performance metrics and optimize their streams.</p>
+                        <a href="#streamer-dashboard" class="project-link">View Details <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                </div>
+
+                <!-- Chat Moderation Project -->
+                <div class="project-card streaming">
+                    <div class="project-image">
+                        <img src="assets/images/project-images/chat-moderation.jpg" alt="Chat Moderation">
+                    </div>
+                    <div class="project-content">
+                        <h3 class="project-title">Chat Moderation</h3>
+                        <p class="project-description">Implemented ML-driven profanity filter to improve chat quality and reduce discard rates from 40% to 18%.</p>
+                        <a href="#chat-moderation" class="project-link">View Details <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                </div>
+
+                <!-- Streamer Incentive Program -->
+                <div class="project-card analytics">
+                    <div class="project-image">
+                        <img src="assets/images/project-images/incentive-program.jpg" alt="Streamer Incentive Program">
+                    </div>
+                    <div class="project-content">
+                        <h3 class="project-title">Streamer Incentive Program</h3>
+                        <p class="project-description">Pioneered a program enabling organic streamers to monetize content, contributing to 55% of Live Watch Hour generation.</p>
+                        <a href="#incentive-program" class="project-link">View Details <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                </div>
+
+                <!-- Purchase Bundle Recommendation -->
+                <div class="project-card gaming analytics">
+                    <div class="project-image">
+                        <img src="assets/images/project-images/bundle-recommendation.jpg" alt="Purchase Bundle Recommendation">
+                    </div>
+                    <div class="project-content">
+                        <h3 class="project-title">Purchase Bundle Recommendation</h3>
+                        <p class="project-description">Developed a feature to recommend purchase bundles, increasing average purchase amount by 18%.</p>
+                        <a href="#bundle-recommendation" class="project-link">View Details <i class="fas fa-arrow-right"></i></a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Project Details Sections -->
+    <section id="loco-studio" class="project-details">
+        <div class="container">
+            <div class="project-details-container">
+                <div class="project-details-image">
+                    <img src="assets/images/project-images/loco-project-detail.jpg" alt="Loco Studio Detail">
+                </div>
+                <div class="project-details-content">
+                    <h3>Loco Studio</h3>
+                    <div class="project-meta">
+                        <div class="project-meta-item">
+                            <span class="project-meta-label">Role</span>
+                            <span class="project-meta-value">Product Manager</span>
+                        </div>
+                        <div class="project-meta-item">
+                            <span class="project-meta-label">Timeline</span>
+                            <span class="project-meta-value">2021-2023</span>
+                        </div>
+                        <div class="project-meta-item">
+                            <span class="project-meta-label">Platform</span>
+                            <span class="project-meta-value">Android</span>
+                        </div>
+                    </div>
+                    <p>Led the development of Loco Studio, an Android app for creator streaming, resulting in significant improvements in user engagement and retention.</p>
+                    <h4>Key Achievements:</h4>
+                    <ul class="project-details-list">
+                        <li>45% increase in Daily Active Users</li>
+                        <li>20% boost in onboarding conversion</li>
+                        <li>10% rise in D30 retention within first six months</li>
+                        <li>Orchestrated a six-month product roadmap with 20+ new features</li>
+                    </ul>
+                    <p>The platform enabled creators to manage their Loco channels, track performance metrics, and optimize content for better engagement.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="cricket-com" class="project-details" style="background-color: #f9f9f9;">
+        <div class="container">
+            <div class="project-details-container">
+                <div class="project-details-content">
+                    <h3>Cricket.com</h3>
+                    <div class="project-meta">
+                        <div class="project-meta-item">
+                            <span class="project-meta-label">Role</span>
+                            <span class="project-meta-value">Product Manager</span>
+                        </div>
+                        <div class="project-meta-item">
+                            <span class="project-meta-label">Timeline</span>
+                            <span class="project-meta-value">2024-Present</span>
+                        </div>
+                        <div class="project-meta-item">
+                            <span class="project-meta-label">Platform</span>
+                            <span class="project-meta-value">Web & Mobile</span>
+                        </div>
+                    </div>
+                    <p>Successfully launched and improved the acquisition & retention of Cricket.com's RMG application and website, catering to a user base of 1 million+ users during the IPL 24 season.</p>
+                    <h4>Key Achievements:</h4>
+                    <ul class="project-details-list">
+                        <li>Enhanced user journey and onboarding experience</li>
+                        <li>16% uplift in user registrations</li>
+                        <li>8% increase in KYC completion rates</li>
+                        <li>200% growth in active users through SEO optimization</li>
+                        <li>Established and managed advertising monetization</li>
+                    </ul>
+                </div>
+                <div class="project-details-image">
+                    <img src="assets/images/project-images/cricket-project-detail.jpg" alt="Cricket.com Detail">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="streamer-dashboard" class="project-details">
+        <div class="container">
+            <div class="project-details-container">
+                <div class="project-details-image">
+                    <img src="assets/images/project-images/dashboard-project-detail.jpg" alt="Streamer Dashboard Detail">
+                </div>
+                <div class="project-details-content">
+                    <h3>Streamer Dashboard</h3>
+                    <div class="project-meta">
+                        <div class="project-meta-item">
+                            <span class="project-meta-label">Role</span>
+                            <span class="project-meta-value">Product Manager</span>
+                        </div>
+                        <div class="project-meta-item">
+                            <span class="project-meta-label">Timeline</span>
+                            <span class="project-meta-value">2021-2023</span>
+                        </div>
+                        <div class="project-meta-item">
+                            <span class="project-meta-label">Platform</span>
+                            <span class="project-meta-value">Web</span>
+                        </div>
+                    </div>
+                    <p>Owned and managed the Streamer Dashboard with 20k DAU, a platform for creators to manage their Loco channels, track performance, and optimize content.</p>
+                    <h4>Key Features:</h4>
+                    <ul class="project-details-list">
+                        <li>Real-time analytics and performance tracking</li>
+                        <li>Content management tools</li>
+                        <li>Audience insights and engagement metrics</li>
+                        <li>Monetization tracking and payout management</li>
+                        <li>Stream scheduling and promotion tools</li>
+                    </ul>
+                    <p>The dashboard became a central hub for creators to grow their channels and optimize their content strategy based on data-driven insights.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-info">
+                    <div class="footer-logo">VK</div>
+                    <p class="footer-text">Customer-obsessed and data-driven Product Manager with expertise in gaming, streaming, and digital products.</p>
+                    <div class="social-links">
+                        <a href="https://linkedin.com/in/vinay-krishnan28" class="social-link" target="_blank"><i class="fab fa-linkedin-in"></i></a>
+                        <a href="https://twitter.com" class="social-link" target="_blank"><i class="fab fa-twitter"></i></a>
+                        <a href="https://github.com" class="social-link" target="_blank"><i class="fab fa-github"></i></a>
+                        <a href="https://medium.com" class="social-link" target="_blank"><i class="fab fa-medium-m"></i></a>
+                    </div>
+                </div>
+                <div class="footer-subscribe">
+                    <h3>Stay Updated</h3>
+                    <form class="subscribe-form">
+                        <input type="email" class="subscribe-input" placeholder="Your Email Address">
+                        <button type="submit" class="subscribe-btn">Subscribe</button>
+                    </form>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p class="copyright">&copy; 2025 Vinay Krishnan. All Rights Reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="assets/js/main.js"></script>
+</body>
+</html>
