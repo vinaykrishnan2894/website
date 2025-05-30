@@ -50,4 +50,20 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+    const experienceElement = document.getElementById('experience-years');
+    if (experienceElement) {
+        const start = new Date(2019, 6, 1); // July 2019 (month is 0-indexed)
+        const now = new Date();
+        let years = now.getFullYear() - start.getFullYear();
+        let months = now.getMonth() - start.getMonth();
+        if (months < 0) {
+            years--;
+            months += 12;
+        }
+        // Always show as decimal years, e.g., 5.8 Years
+        let totalYears = years + months / 12;
+        let experienceText = `${totalYears.toFixed(1)} Years`;
+        experienceElement.textContent = experienceText;
+    
+    }
 });
