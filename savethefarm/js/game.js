@@ -1,4 +1,4 @@
-// game.js — Core game loop and state machine
+// game.js — Core game loop, state machine, world rendering
 // States: LOADING → READY → COUNTDOWN → PLAYING → PAUSED → ENDING → ENDED → RESULTS
 
 const CROP_TYPES = ['wheat', 'corn', 'carrot', 'sunflower'];
@@ -10,16 +10,19 @@ class Game {
     this.ctx    = this.canvas.getContext('2d');
     this.state  = 'LOADING';
 
-    // Grid — must exist before resize() calls _calcLayout()
+    // Must exist before resize()
     this.grid        = [];
     this.gridOffsetX = 0;
     this.gridOffsetY = 0;
     this.tileSize    = CONFIG.TILE_SIZE;
 
-    // B7 fix: track dpr separately, never stack scale calls
+    // P1/P2: gradient/cloud cache
+    this._bgCache = null;
+    this._bgCacheW = 0;
+    this._bgCacheH = 0;
+
     this._dpr = window.devicePixelRatio || 1;
     this._resizeScheduled = false;
-
     this.resize();
     window.addEventListener('resize', () => {
       if (!this._resizeScheduled) {
@@ -32,16 +35,20 @@ class Game {
     this.spawner = null;
     this.ui      = new UI(this.canvas);
 
-    this.timeLeft        = CONFIG.GAME_DURATION;
-    this.bestCombo       = 1;
-    this.pestsChased     = 0;
-    this.loadProgress    = 0;
-    this.countdownValue  = CONFIG.COUNTDOWN_DURATION;
-    this.countdownTimer  = 0;
-    this.highScore       = parseInt(localStorage.getItem('stf_highScore') || '0');
+    this.timeLeft     = CONFIG.GAME_DURATION;
+    this.bestCombo    = 1;
+    this.pestsChased  = 0;
+    this.loadProgress = 0;
+    this.countdownValue = CONFIG.COUNTDOWN_DURATION;
+    this.countdownTimer = 0;
+    this.highScore = parseInt(localStorage.getItem('stf_highScore') || '0');
 
-    // G1: tap-miss feedback particles
-    this.missTaps = [];
+    this.missTaps        = [];
+    this._gameOverBanner = null;
+    this._globalTime     = 0; // ambient animation clock
+
+    // Camera shake
+    this._shakeTime = 0; this._shakeX = 0; this._shakeY = 0;
 
     this._setupInput();
 
@@ -60,9 +67,8 @@ class Game {
     this._fakeLoad();
   }
 
-  // ── LAYOUT ─────────────────────────────────────
+  // ── LAYOUT ──────────────────────────────────────
   resize() {
-    // B7 fix: reset canvas properly without stacking scale
     const dpr = window.devicePixelRatio || 1;
     this._dpr = dpr;
     const w   = window.innerWidth;
@@ -71,19 +77,18 @@ class Game {
     this.canvas.height = Math.round(h * dpr);
     this.canvas.style.width  = w + 'px';
     this.canvas.style.height = h + 'px';
-    // Reset transform completely before applying fresh scale
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.cw = w;
-    this.ch = h;
+    this.cw = w; this.ch = h;
+    // Invalidate background cache on resize
+    this._bgCache = null;
     this._calcLayout();
   }
 
   _calcLayout() {
-    // U5: respect landscape — reduce grid height in landscape
-    const isLandscape = this.cw > this.ch;
-    const hudH   = isLandscape ? 70 : 100;
-    const maxW   = Math.min(this.cw - 30, isLandscape ? this.cw * 0.55 : 440);
-    const maxH   = Math.min(this.ch - hudH - 30, isLandscape ? this.ch - 20 : 440);
+    const isLandscape = this.cw > this.ch * 1.3;
+    const hudH  = isLandscape ? 70 : 110;
+    const maxW  = Math.min(this.cw - 28, isLandscape ? this.cw * 0.56 : 430);
+    const maxH  = Math.min(this.ch - hudH - 20, 430);
     this.tileSize = Math.floor(Math.min(
       (maxW - (CONFIG.GRID_COLS - 1) * CONFIG.TILE_PADDING) / CONFIG.GRID_COLS,
       (maxH - (CONFIG.GRID_ROWS - 1) * CONFIG.TILE_PADDING) / CONFIG.GRID_ROWS,
@@ -92,25 +97,25 @@ class Game {
     const gridW = CONFIG.GRID_COLS * this.tileSize + (CONFIG.GRID_COLS - 1) * CONFIG.TILE_PADDING;
     const gridH = CONFIG.GRID_ROWS * this.tileSize + (CONFIG.GRID_ROWS - 1) * CONFIG.TILE_PADDING;
     this.gridOffsetX = isLandscape
-      ? (this.cw * 0.5 - gridW) / 2 + this.cw * 0.1
+      ? (this.cw * 0.5 - gridW) / 2 + this.cw * 0.08
       : (this.cw - gridW) / 2;
-    this.gridOffsetY = (this.ch - gridH) / 2 + (isLandscape ? 0 : 20);
+    this.gridOffsetY = (this.ch - gridH) / 2 + (isLandscape ? 0 : 18);
 
     if (this.grid.length > 0) {
       this.grid.forEach((tile, i) => {
         const col = i % CONFIG.GRID_COLS;
         const row = Math.floor(i / CONFIG.GRID_COLS);
-        tile.px       = this.gridOffsetX + col * (this.tileSize + CONFIG.TILE_PADDING);
-        tile.py       = this.gridOffsetY + row * (this.tileSize + CONFIG.TILE_PADDING);
+        tile.px = this.gridOffsetX + col * (this.tileSize + CONFIG.TILE_PADDING);
+        tile.py = this.gridOffsetY + row * (this.tileSize + CONFIG.TILE_PADDING);
         tile.tileSize = this.tileSize;
       });
     }
   }
 
-  _gridWidth()  { return CONFIG.GRID_COLS * this.tileSize + (CONFIG.GRID_COLS - 1) * CONFIG.TILE_PADDING; }
-  _gridHeight() { return CONFIG.GRID_ROWS * this.tileSize + (CONFIG.GRID_ROWS - 1) * CONFIG.TILE_PADDING; }
+  _gw() { return CONFIG.GRID_COLS * this.tileSize + (CONFIG.GRID_COLS - 1) * CONFIG.TILE_PADDING; }
+  _gh() { return CONFIG.GRID_ROWS * this.tileSize + (CONFIG.GRID_ROWS - 1) * CONFIG.TILE_PADDING; }
 
-  // ── BUILD ───────────────────────────────────────
+  // ── BUILD ────────────────────────────────────────
   _buildGrid() {
     this.grid = [];
     for (let i = 0; i < CONFIG.GRID_ROWS * CONFIG.GRID_COLS; i++) {
@@ -118,21 +123,19 @@ class Game {
       const row  = Math.floor(i / CONFIG.GRID_COLS);
       const type = CROP_TYPES[i % CROP_TYPES.length];
       const tile = new CropTile(col, row, type, 2);
-      tile.px       = this.gridOffsetX + col * (this.tileSize + CONFIG.TILE_PADDING);
-      tile.py       = this.gridOffsetY + row * (this.tileSize + CONFIG.TILE_PADDING);
+      tile.px = this.gridOffsetX + col * (this.tileSize + CONFIG.TILE_PADDING);
+      tile.py = this.gridOffsetY + row * (this.tileSize + CONFIG.TILE_PADDING);
       tile.tileSize = this.tileSize;
       this.grid.push(tile);
     }
   }
 
   _buildDog() {
-    const cx = this.gridOffsetX + this._gridWidth() / 2;
-    const cy = this.gridOffsetY + this._gridHeight() / 2;
-    this.dog          = new Dog(cx, cy);
-    this.dog.centerX  = cx;
-    this.dog.centerY  = cy;
-    // V3 fix: dog is at least 55px and at most 1.0× tile
-    this.dog.size     = Math.max(55, Math.min(Math.round(this.tileSize * 0.9), 90));
+    const cx = this.gridOffsetX + this._gw() / 2;
+    const cy = this.gridOffsetY + this._gh() / 2;
+    this.dog = new Dog(cx, cy);
+    this.dog.centerX = cx; this.dog.centerY = cy;
+    this.dog.size = Math.max(58, Math.min(Math.round(this.tileSize * 0.95), 92));
   }
 
   _buildSpawner() {
@@ -140,8 +143,10 @@ class Game {
     this.spawner.onPestDamage(tileIndex => {
       const tile = this.grid[tileIndex];
       if (tile) {
+        // Camera shake on crop death
+        this._triggerShake(4, 0.3);
         this.ui.scorePopups.push(new ScorePopup(
-          tile.px + this.tileSize / 2, tile.py, '💥', '#FF4968'
+          tile.px + this.tileSize / 2, tile.py - 10, '💥', '#FF4968'
         ));
       }
       Audio.playMiss();
@@ -149,48 +154,50 @@ class Game {
     });
   }
 
+  _triggerShake(amount, duration) {
+    this._shakeTime = duration;
+    this._shakeMag  = amount;
+  }
+
   _checkCropGameOver() {
-    if (this.state !== 'PLAYING') return; // B4 fix: only trigger from PLAYING
+    if (this.state !== 'PLAYING') return;
     const alive = this.grid.filter(t => !t.dead).length;
     if (alive <= GAME_OVER_CROP_THRESHOLD) {
       this.state = 'ENDING';
       this.spawner.stop();
-      // G6 fix: use a prominent centered banner, not a floating popup
-      this._gameOverBanner = { text: '☠ FARM DESTROYED!', alpha: 1, timer: 1.4 };
-      setTimeout(() => this._endGame(), 1400);
+      this._gameOverBanner = { text: '☠ FARM DESTROYED!', alpha: 1, timer: 1.5 };
+      setTimeout(() => this._endGame(), 1500);
     }
   }
 
-  // ── LIFECYCLE ───────────────────────────────────
+  // ── LIFECYCLE ────────────────────────────────────
   _fakeLoad() {
-    const duration = 1600;
+    const duration = 1400;
     const start    = performance.now();
     const tick = () => {
       this.loadProgress = Math.min(1, (performance.now() - start) / duration);
       if (this.loadProgress < 1) requestAnimationFrame(tick);
-      else setTimeout(() => { this.state = 'READY'; }, 150);
+      else setTimeout(() => { this.state = 'READY'; }, 80);
     };
     requestAnimationFrame(tick);
   }
 
   _startGame() {
+    this._bgCache = null; // force background re-render
     this._buildGrid();
     this._calcLayout();
     this._buildDog();
     this._buildSpawner();
 
     this.timeLeft    = CONFIG.GAME_DURATION;
-    this.ui.score    = 0;
-    this.ui.displayScore = 0;
-    this.ui.timeLeft = this.timeLeft;
-    this.ui.totalTime = CONFIG.GAME_DURATION;
-    this.ui.resultsVisible = false;
-    this.ui.resultsSlide   = 0;
+    this.ui.score    = 0; this.ui.displayScore = 0;
+    this.ui.timeLeft = this.timeLeft; this.ui.totalTime = CONFIG.GAME_DURATION;
+    this.ui.resetResults();
     this.ui.breakCombo();
-    this.pestsChased      = 0;
-    this.bestCombo        = 1;
-    this.missTaps         = [];
-    this._gameOverBanner  = null;
+    this.pestsChased     = 0; this.bestCombo = 1;
+    this.missTaps        = []; this._gameOverBanner = null;
+    this._globalTime     = 0;
+    this._shakeTime      = 0;
 
     this.state          = 'COUNTDOWN';
     this.countdownValue = CONFIG.COUNTDOWN_DURATION;
@@ -198,10 +205,7 @@ class Game {
     this.ui.showCountdown(this.countdownValue);
     Audio.playCountdown(false);
 
-    if (this._pauseBtn) {
-      this._pauseBtn.style.display = 'block';
-      this._pauseBtn.textContent   = '⏸';
-    }
+    if (this._pauseBtn) { this._pauseBtn.style.display = 'block'; this._pauseBtn.textContent = '⏸'; }
   }
 
   togglePause() {
@@ -215,7 +219,6 @@ class Game {
   }
 
   _endGame() {
-    // B4 fix: guard against double-call
     if (this.state === 'ENDED' || this.state === 'RESULTS') return;
     this.state = 'ENDED';
     this.spawner.stop();
@@ -227,18 +230,12 @@ class Game {
     }, 0);
     this.ui.score += cropBonus;
     if (cropBonus > 0) {
-      this.ui.scorePopups.push(new ScorePopup(
-        this.cw / 2, this.ch / 2 - 60, `+${cropBonus} crop bonus!`, CONFIG.COLORS.gold
-      ));
+      this.ui.scorePopups.push(new ScorePopup(this.cw / 2, this.ch / 2 - 70, `+${cropBonus} Crop Bonus!`, CONFIG.COLORS.gold));
     }
 
     const final = Math.round(this.ui.score);
-    if (final > this.highScore) {
-      this.highScore = final;
-      localStorage.setItem('stf_highScore', this.highScore);
-    }
-    if (final >= 300) Audio.playVictory();
-    else              Audio.playGameOver();
+    if (final > this.highScore) { this.highScore = final; localStorage.setItem('stf_highScore', this.highScore); }
+    if (final >= 300) Audio.playVictory(); else Audio.playGameOver();
 
     setTimeout(() => {
       this.state = 'RESULTS';
@@ -247,7 +244,7 @@ class Game {
     }, 1400);
   }
 
-  // ── INPUT ──────────────────────────────────────
+  // ── INPUT ────────────────────────────────────────
   _setupInput() {
     const handler = e => {
       e.preventDefault();
@@ -270,45 +267,38 @@ class Game {
     }
     if (this.state === 'RESULTS') {
       const hit = this.ui.hitTestResults(px, py);
-      if (hit === 'playAgain')   this._startGame();
-      if (hit === 'backToFarm')  window.location.href = 'https://vinaykrishnan.in';
+      if (hit === 'playAgain')  this._startGame();
+      if (hit === 'backToFarm') window.location.href = 'https://vinaykrishnan.in';
       return;
     }
     if (this.state !== 'PLAYING') return;
 
     const tileIndex = this._tileAtPoint(px, py);
-
-    // V8: always show ripple on any valid tile tap
     if (tileIndex !== null) this.grid[tileIndex].triggerRipple();
 
     const pest = tileIndex !== null ? this.spawner.getPestAtTile(tileIndex) : null;
-
-    // G1: if tap hits no pest, show a miss indicator
     if (!pest) {
-      this.missTaps.push({ x: px, y: py, life: 0.5, maxLife: 0.5 });
+      this.missTaps.push({ x: px, y: py, life: 0.55, maxLife: 0.55 });
       return;
     }
 
-    // B3 fix: dog goes to the TAPPED tile's position, not necessarily pest.tileIndex
     const targetTile = this.grid[tileIndex];
     const destX = targetTile.px + targetTile.tileSize / 2;
-    const destY = targetTile.py + targetTile.tileSize / 2 - targetTile.tileSize * 0.12;
+    const destY = targetTile.py + targetTile.tileSize / 2 - targetTile.tileSize * 0.1;
 
     const capturedPest = pest;
-    const capturedArrivalTime = this.timeLeft; // used as reference; actual check in callback
-
     this.dog.moveTo(destX, destY, () => {
-      // B1 fix: combo is measured at ARRIVAL time, not tap time
       const chased = this.spawner.chasePest(capturedPest.tileIndex);
       if (!chased) return;
 
       this.pestsChased++;
       Audio.playChase();
+      this._triggerShake(2, 0.15); // light shake on successful chase
 
-      // B1: use dog's lastArrivalTime (updated here, at actual arrival)
-      const now           = this.timeLeft;
-      const lastArrival   = this.dog.lastArrivalTime;
-      const timeSinceLast = Math.abs(lastArrival - now); // both in game-clock seconds
+      // C1 fix: lastArrivalTime properly compared
+      const now         = this.timeLeft;
+      const last        = this.dog.lastArrivalTime;
+      const timeSinceLast = last === null ? 9999 : Math.abs(last - now);
 
       if (timeSinceLast <= CONFIG.COMBO_WINDOW) {
         this.ui.addCombo();
@@ -317,29 +307,33 @@ class Game {
         this.ui.breakCombo();
         this.ui.addCombo();
       }
-      this.dog.lastArrivalTime = now; // B1: update at arrival
+      this.dog.lastArrivalTime = now;
       this.bestCombo = Math.max(this.bestCombo, this.ui.comboMultiplier);
 
-      const pts = CONFIG.PEST_POINTS[chased.type];
-      // U6 fix: use tile position (stable), not pest position (may have moved)
+      const pts       = CONFIG.PEST_POINTS[chased.type];
       const scoreTile = this.grid[chased.tileIndex];
-      this.ui.addScore(pts, scoreTile.px + this.tileSize / 2, scoreTile.py, this.ui.comboMultiplier);
+      this.ui.addScore(pts, scoreTile.px + this.tileSize / 2, scoreTile.py - 10, this.ui.comboMultiplier);
     });
   }
 
   _tileAtPoint(px, py) {
-    const pad = 10; // generous tap target for mobile
+    // C2 fix: reduced pad and check centre-closest tile to avoid overlaps
+    const pad = 8;
+    let bestIdx = null, bestDist = 9999;
     for (let i = 0; i < this.grid.length; i++) {
       const t = this.grid[i];
       if (px >= t.px - pad && px <= t.px + this.tileSize + pad &&
           py >= t.py - pad && py <= t.py + this.tileSize + pad) {
-        return i;
+        const cx   = t.px + this.tileSize / 2;
+        const cy   = t.py + this.tileSize / 2;
+        const dist = Math.hypot(px - cx, py - cy);
+        if (dist < bestDist) { bestDist = dist; bestIdx = i; }
       }
     }
-    return null;
+    return bestIdx;
   }
 
-  // ── LOOP ───────────────────────────────────────
+  // ── LOOP ─────────────────────────────────────────
   _loop(ts) {
     const dt = Math.min((ts - this._lastTime) / 1000, 0.05);
     this._lastTime = ts;
@@ -349,19 +343,41 @@ class Game {
   }
 
   _update(dt) {
-    // Miss tap particles
+    this._globalTime += dt;
+
+    // Camera shake
+    if (this._shakeTime > 0) {
+      this._shakeTime -= dt;
+      const mag  = (this._shakeTime / 0.3) * (this._shakeMag || 4);
+      this._shakeX = (Math.random() - 0.5) * mag;
+      this._shakeY = (Math.random() - 0.5) * mag;
+      if (this._shakeTime <= 0) { this._shakeX = 0; this._shakeY = 0; }
+    }
+
+    // Miss taps
     this.missTaps = this.missTaps.filter(m => { m.life -= dt; return m.life > 0; });
 
     // Game over banner
     if (this._gameOverBanner) {
       this._gameOverBanner.timer -= dt;
-      this._gameOverBanner.alpha  = Math.min(1, this._gameOverBanner.timer / 0.4);
+      this._gameOverBanner.alpha  = Math.min(1, this._gameOverBanner.timer / 0.5);
+    }
+
+    // Update pest threat state on tiles
+    if (this.grid.length > 0 && this.spawner) {
+      this.grid.forEach(t => { t.threatened = false; });
+      this.spawner.activePests.forEach(p => {
+        if (!p.alive) return;
+        if (this.grid[p.tileIndex]) this.grid[p.tileIndex].threatened = true;
+        if (p.secondaryTileIndex !== null && this.grid[p.secondaryTileIndex])
+          this.grid[p.secondaryTileIndex].threatened = true;
+      });
     }
 
     switch (this.state) {
       case 'LOADING': break;
       case 'READY':
-        if (this.ui._readyAnim === undefined) this.ui._readyAnim = 0;
+        if (!this.ui._readyAnim) this.ui._readyAnim = 0;
         this.ui._readyAnim += dt;
         break;
 
@@ -370,15 +386,12 @@ class Game {
         if (this.countdownTimer <= 0) {
           this.countdownValue--;
           if (this.countdownValue <= 0) {
-            this.state = 'PLAYING';
-            this.spawner.start();
-            this.ui.showCountdown(0);
-            Audio.playCountdown(true);
+            this.state = 'PLAYING'; this.spawner.start();
+            this.ui.showCountdown(0); Audio.playCountdown(true);
             this.countdownTimer = 0.9;
           } else {
             this.countdownTimer = 1.0;
-            this.ui.showCountdown(this.countdownValue);
-            Audio.playCountdown(false);
+            this.ui.showCountdown(this.countdownValue); Audio.playCountdown(false);
           }
         }
         this.grid.forEach(t => t.update(dt));
@@ -395,21 +408,15 @@ class Game {
         break;
 
       case 'ENDING':
+      case 'ENDED':
         this.grid.forEach(t => t.update(dt));
-        this.dog.update(dt);
-        this.spawner.update(dt);
-        this.ui.update(dt, this.timeLeft);
+        if (this.dog) this.dog.update(dt);
+        if (this.spawner) this.spawner.update(dt);
+        this.ui.update(dt, Math.max(0, this.timeLeft));
         break;
 
       case 'PAUSED':
         this.ui.update(0, this.timeLeft);
-        break;
-
-      case 'ENDED':
-        this.grid.forEach(t => t.update(dt));
-        this.dog.update(dt);
-        this.spawner.update(dt);
-        this.ui.update(dt, 0);
         break;
 
       case 'RESULTS':
@@ -418,10 +425,10 @@ class Game {
     }
   }
 
-  // ── DRAW ───────────────────────────────────────
+  // ── DRAW ─────────────────────────────────────────
   _draw() {
     const ctx = this.ctx;
-    ctx.save(); // C6: top-level save so nothing bleeds between frames
+    ctx.save();
     ctx.clearRect(0, 0, this.cw, this.ch);
 
     switch (this.state) {
@@ -438,69 +445,88 @@ class Game {
     ctx.restore();
   }
 
+  // P1/P2: cache static background into offscreen canvas
+  _ensureBgCache() {
+    if (this._bgCache && this._bgCacheW === this.cw && this._bgCacheH === this.ch) return;
+    const oc  = document.createElement('canvas');
+    oc.width  = this.cw; oc.height = this.ch;
+    const oc2 = oc.getContext('2d');
+    const gx  = this.gridOffsetX, gy = this.gridOffsetY;
+    const gw  = this._gw();
+
+    // Sky
+    const sky = oc2.createLinearGradient(0, 0, 0, gy - 10);
+    sky.addColorStop(0,   CONFIG.COLORS.skyTop);
+    sky.addColorStop(0.6, CONFIG.COLORS.skyMid);
+    sky.addColorStop(1,   CONFIG.COLORS.skyBot);
+    oc2.fillStyle = sky;
+    oc2.fillRect(0, 0, this.cw, gy - 10);
+
+    // Static clouds
+    _drawBgCloud(oc2, this.cw * 0.10, gy * 0.22, Math.min(52, this.cw * 0.13));
+    _drawBgCloud(oc2, this.cw * 0.52, gy * 0.12, Math.min(68, this.cw * 0.16));
+    _drawBgCloud(oc2, this.cw * 0.84, gy * 0.28, Math.min(44, this.cw * 0.11));
+
+    // Ground gradient
+    const ground = oc2.createLinearGradient(0, gy - 28, 0, this.ch);
+    ground.addColorStop(0,    CONFIG.COLORS.grassLight);
+    ground.addColorStop(0.12, CONFIG.COLORS.grass);
+    ground.addColorStop(1,    CONFIG.COLORS.grassDark);
+    oc2.fillStyle = ground;
+    oc2.fillRect(0, gy - 28, this.cw, this.ch - (gy - 28));
+
+    // Horizon edge
+    oc2.fillStyle = '#A8DC38';
+    oc2.fillRect(0, gy - 28, this.cw, 5);
+
+    // Fence
+    const fenceY     = gy - 52;
+    const fenceLeft  = gx - 18;
+    const fenceRight = gx + gw + 18;
+    oc2.strokeStyle  = '#6A3828';
+    oc2.lineWidth    = 5;
+    oc2.beginPath(); oc2.moveTo(fenceLeft, fenceY + 16); oc2.lineTo(fenceRight, fenceY + 16); oc2.stroke();
+    oc2.beginPath(); oc2.moveTo(fenceLeft, fenceY + 32); oc2.lineTo(fenceRight, fenceY + 32); oc2.stroke();
+    for (let fx = fenceLeft; fx <= fenceRight + 1; fx += 28) {
+      _drawCachedFencePost(oc2, fx, fenceY, 50);
+    }
+
+    // Bushes / trees outside grid
+    _drawBgBush(oc2, gx - 52, gy + this._gh() * 0.35, 30);
+    _drawBgBush(oc2, gx + gw + 40, gy + this._gh() * 0.55, 24);
+    _drawBgBush(oc2, gx - 34, gy + this._gh() * 0.72, 20);
+    _drawBgBush(oc2, gx + gw + 20, gy + this._gh() * 0.22, 18);
+
+    this._bgCache  = oc;
+    this._bgCacheW = this.cw;
+    this._bgCacheH = this.ch;
+  }
+
   _drawGameWorld() {
     const ctx = this.ctx;
     const cw  = this.cw, ch = this.ch;
-    const gx  = this.gridOffsetX, gy = this.gridOffsetY;
-    const gw  = this._gridWidth(), gh = this._gridHeight();
 
-    // V1: richer background — sky with clouds, ground with depth
-    // Sky
-    const sky = ctx.createLinearGradient(0, 0, 0, gy - 20);
-    sky.addColorStop(0, '#4AB8F0');
-    sky.addColorStop(1, '#A8D8F0');
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, cw, gy - 20);
+    // Camera shake transform
+    if (this._shakeX || this._shakeY) {
+      ctx.translate(Math.round(this._shakeX), Math.round(this._shakeY));
+    }
 
-    // V1: subtle clouds in gameplay background
+    // P2: draw cached static background
+    this._ensureBgCache();
+    ctx.drawImage(this._bgCache, 0, 0);
+
+    // Animated moving clouds (layered over cached)
     ctx.save();
-    ctx.globalAlpha = 0.55;
-    _drawBgCloud(ctx, cw * 0.12, gy * 0.25, 45);
-    _drawBgCloud(ctx, cw * 0.55, gy * 0.15, 55);
-    _drawBgCloud(ctx, cw * 0.82, gy * 0.30, 38);
+    ctx.globalAlpha = 0.4;
+    const cloudScroll = (this._globalTime * 12) % (cw + 140);
+    _drawBgCloud(ctx, -70 + cloudScroll, this.gridOffsetY * 0.35, 36);
     ctx.restore();
 
-    // Ground — gradient for depth
-    const ground = ctx.createLinearGradient(0, gy - 30, 0, ch);
-    ground.addColorStop(0,   '#92CC1C');
-    ground.addColorStop(0.15,'#7DB018');
-    ground.addColorStop(1,   '#558C10');
-    ctx.fillStyle = ground;
-    ctx.fillRect(0, gy - 30, cw, ch - (gy - 30));
-
-    // V9 fix: grass stripes ONLY in areas above tile rows, not over tiles
-    ctx.fillStyle = 'rgba(0,0,0,0.03)';
-    for (let gsx = -10; gsx < cw + 10; gsx += 30) {
-      // Only draw stripe in the grass strip above the grid
-      ctx.fillRect(gsx, gy - 28, 14, 28);
-    }
-
-    // Horizon shadow line
-    ctx.fillStyle = CONFIG.COLORS.grassDark;
-    ctx.fillRect(0, gy - 30, cw, 6);
-
-    // Fence
-    const fenceY     = gy - 50;
-    const fenceLeft  = gx - 16;
-    const fenceRight = gx + gw + 16;
-    ctx.strokeStyle  = '#7C433E';
-    ctx.lineWidth    = 5;
-    ctx.beginPath(); ctx.moveTo(fenceLeft,  fenceY + 16); ctx.lineTo(fenceRight, fenceY + 16); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(fenceLeft,  fenceY + 32); ctx.lineTo(fenceRight, fenceY + 32); ctx.stroke();
-    for (let fx = fenceLeft; fx <= fenceRight; fx += 28) {
-      Sprites.drawFencePost(ctx, fx, fenceY, 46);
-    }
-
-    // V1: small tree / bush decorations outside grid area
-    _drawBgBush(ctx, gx - 55, gy + gh * 0.4, 28);
-    _drawBgBush(ctx, gx + gw + 38, gy + gh * 0.6, 22);
-    _drawBgBush(ctx, gx - 38, gy + gh * 0.75, 18);
-
-    // Crop tiles (back rows first for painter's depth)
+    // Crop tiles — back rows first (painter's algorithm for depth)
     for (let row = 0; row < CONFIG.GRID_ROWS; row++) {
       for (let col = 0; col < CONFIG.GRID_COLS; col++) {
         const tile = this.grid[row * CONFIG.GRID_COLS + col];
-        tile.draw(ctx, tile.px, tile.py, this.tileSize);
+        tile.draw(ctx, tile.px, tile.py, this.tileSize, this._globalTime);
       }
     }
 
@@ -510,18 +536,17 @@ class Game {
     // Dog
     this.dog.draw(ctx);
 
-    // G1: miss tap "!" indicators
+    // Miss tap indicators
     this.missTaps.forEach(m => {
       const t = m.life / m.maxLife;
       ctx.save();
-      ctx.globalAlpha = t;
-      ctx.translate(m.x, m.y - (1 - t) * 20);
-      ctx.font      = `bold 20px 'Fredoka One', cursive`;
+      ctx.globalAlpha = t * 0.9;
+      ctx.translate(m.x, m.y - (1 - t) * 25);
+      ctx.font = `bold 22px 'Fredoka One', cursive`;
       ctx.textAlign = 'center';
-      ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 3;
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 4;
       ctx.strokeText('✗', 0, 0);
-      ctx.fillStyle = '#FF4968';
-      ctx.fillText('✗', 0, 0);
+      ctx.fillStyle = '#FF4968'; ctx.fillText('✗', 0, 0);
       ctx.restore();
     });
 
@@ -531,94 +556,99 @@ class Game {
     // Countdown
     this.ui.drawCountdown(ctx, cw, ch);
 
-    // G6: game-over banner (prominent, centred)
+    // Game over banner
     if (this._gameOverBanner && this._gameOverBanner.alpha > 0) {
       const b = this._gameOverBanner;
       ctx.save();
       ctx.globalAlpha = b.alpha;
-      ctx.translate(cw / 2, ch / 2 - 20);
-      ctx.fillStyle = 'rgba(180,0,0,0.85)';
-      _uiRoundRectG(ctx, -150, -32, 300, 56, 16);
-      ctx.fill();
+      ctx.translate(cw / 2, ch / 2 - 16);
+      // Panel
+      ctx.fillStyle = 'rgba(160,0,0,0.9)';
+      _uiRR(ctx, -150, -34, 300, 58, 18); ctx.fill();
+      // Gloss
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      _uiRR(ctx, -146, -30, 292, 24, 16); ctx.fill();
       ctx.fillStyle = '#FFF';
-      ctx.font      = `bold 26px 'Fredoka One', cursive`;
+      ctx.font = `bold 26px 'Fredoka One', cursive`;
       ctx.textAlign = 'center';
-      ctx.fillText(b.text, 0, 10);
+      ctx.fillText(b.text, 0, 12);
       ctx.restore();
     }
 
     // Paused overlay
     if (this.state === 'PAUSED') {
-      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillStyle = 'rgba(20,10,0,0.6)';
       ctx.fillRect(0, 0, cw, ch);
       ctx.fillStyle = '#FFF';
-      ctx.font      = `bold 42px 'Fredoka One', cursive`;
+      ctx.font = `bold 44px 'Fredoka One', cursive`;
       ctx.textAlign = 'center';
-      ctx.fillText('⏸ PAUSED', cw / 2, ch / 2);
-      ctx.font      = `20px 'Fredoka One', cursive`;
-      ctx.fillStyle = 'rgba(255,255,255,0.75)';
-      ctx.fillText('Tap ▶ to resume', cw / 2, ch / 2 + 44);
+      ctx.fillText('⏸ PAUSED', cw / 2, ch / 2 - 10);
+      ctx.font = `20px 'Fredoka One', cursive`;
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fillText('Tap ▶ to continue', cw / 2, ch / 2 + 34);
     }
 
-    // U5: landscape warning
+    // Landscape hint
     if (this.cw > this.ch && this.cw < 700) {
-      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
       ctx.fillRect(0, 0, cw, ch);
       ctx.fillStyle = '#FFF';
-      ctx.font      = `bold 22px 'Fredoka One', cursive`;
+      ctx.font = `bold 22px 'Fredoka One', cursive`;
       ctx.textAlign = 'center';
       ctx.fillText('🔄 Rotate for best experience', cw / 2, ch / 2);
     }
 
-    // Results overlay
+    // Results
     if (this.state === 'RESULTS') {
       const cropsSaved = this.grid.filter(t => !t.dead).length;
       const final      = Math.round(this.ui.score);
       this.ui.drawResults(ctx, cw, ch, {
-        score:       final,
-        cropsSaved,
-        bestCombo:   this.bestCombo,
-        pestsChased: this.pestsChased,
-        isNewBest:   final > 0 && final >= this.highScore,
+        score: final, cropsSaved,
+        bestCombo: this.bestCombo, pestsChased: this.pestsChased,
+        isNewBest: final > 0 && final >= this.highScore,
+        highScore: this.highScore,
       });
     }
   }
 }
 
-// ── BACKGROUND DECORATION HELPERS ──────────────
+// ── BACKGROUND HELPERS ─────────────────────────────
 function _drawBgCloud(ctx, cx, cy, r) {
-  ctx.fillStyle = 'rgba(255,255,255,0.82)';
-  [0, -r*0.4, r*0.4, -r*0.72, r*0.72].forEach((ox, i) => {
-    const cr = i === 0 ? r * 0.52 : r * 0.36;
+  ctx.fillStyle = 'rgba(255,255,255,0.88)';
+  [[0,0,0.52],[1,-0.4,0.36],[1,0.4,0.36],[-1,-0.72,0.32],[-1,0.72,0.32]].forEach(([dir,oMul,rMul]) => {
     ctx.beginPath();
-    ctx.arc(cx + ox, cy + (i === 0 ? 0 : r * 0.22), cr, 0, Math.PI * 2);
+    ctx.arc(cx + (dir !== 0 ? dir * r * 0.4 : 0), cy + (oMul * r * 0.25), r * rMul, 0, Math.PI * 2);
     ctx.fill();
   });
 }
 
 function _drawBgBush(ctx, x, y, r) {
-  ctx.fillStyle = '#4A9018';
+  ctx.fillStyle = '#3A8010';
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#5AAC20';
-  ctx.beginPath(); ctx.arc(x - r * 0.5, y - r * 0.3, r * 0.7, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(x + r * 0.5, y - r * 0.2, r * 0.65, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#68C028';
-  ctx.beginPath(); ctx.arc(x, y - r * 0.5, r * 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x - r * 0.55, y - r * 0.3, r * 0.72, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + r * 0.5,  y - r * 0.25, r * 0.65, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#70C030';
+  ctx.beginPath(); ctx.arc(x - r * 0.1, y - r * 0.55, r * 0.52, 0, Math.PI * 2); ctx.fill();
 }
 
-// Needed here since game.js draws the gameover banner
-function _uiRoundRectG(ctx, x, y, w, h, r) {
+function _drawCachedFencePost(ctx, x, y, h) {
+  ctx.fillStyle = '#8B4832';
+  ctx.fillRect(x - 4, y, 8, h);
+  ctx.fillStyle = '#A05040';
+  ctx.fillRect(x - 6, y, 12, 10);
+  ctx.fillStyle = 'rgba(0,0,0,0.14)';
+  ctx.fillRect(x + 4, y + 10, 3, h - 10);
+}
+
+// Shared roundrect for game.js (ui.js has its own)
+function _uiRR(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
-  ctx.quadraticCurveTo(x+w,y,x+w,y+r);
-  ctx.lineTo(x+w,y+h-r);
-  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-  ctx.lineTo(x+r,y+h);
-  ctx.quadraticCurveTo(x,y+h,x,y+h-r);
-  ctx.lineTo(x,y+r);
-  ctx.quadraticCurveTo(x,y,x+r,y);
-  ctx.closePath();
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r); ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h); ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r); ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
 }
 
-// ── BOOT ──────────────────────────────────────
 window.addEventListener('load', () => { new Game(); });

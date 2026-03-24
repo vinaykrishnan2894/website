@@ -1090,26 +1090,29 @@ function _roundRect(ctx, x, y, w, h, r) {
 // CROP TILE ENTITY
 // ─────────────────────────────────────────────
 
-// ─────────────────────────────────────────────
-// CROP TILE ENTITY
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════
+// CROP TILE
+// ═══════════════════════════════════════════════
 class CropTile {
   constructor(col, row, cropType, stage = 2) {
-    this.col      = col;
-    this.row      = row;
+    this.col = col; this.row = row;
     this.cropType = cropType;
     this.stage    = stage;
     this.maxHp    = CONFIG.CROP_HP;
     this.hp       = this.maxHp;
     this.damaged  = false;
     this.dead     = false;
-    this.shakeTime = 0;
-    this.shakeX    = 0;
-    // V8: tap ripple
-    this.rippleTime  = 0;
-    this.rippleAlpha = 0;
-    // G6: damage flash
-    this.flashTime   = 0;
+    // Shake
+    this.shakeTime = 0; this.shakeX = 0;
+    // Tap ripple
+    this.rippleTime = 0; this.rippleR = 0;
+    // Damage flash
+    this.flashTime = 0;
+    // Ambient sway (crops gently sway)
+    this.swayOffset = Math.random() * Math.PI * 2;
+    // Threat pulse (when pest is on this tile)
+    this.threatened = false;
+    this.threatPulse = 0;
   }
 
   takeDamage() {
@@ -1118,45 +1121,51 @@ class CropTile {
     this.damaged = this.hp < this.maxHp;
     this.dead    = this.hp === 0;
     this.shakeTime = CONFIG.ANIM.CROP_SHAKE;
-    this.flashTime = CONFIG.ANIM.GAMEOVER_FLASH;
+    this.flashTime = CONFIG.ANIM.DAMAGE_FLASH;
     if (this.stage > 0) this.stage = Math.max(0, this.stage - 1);
   }
 
-  // V8: called by game when player taps this tile
   triggerRipple() {
-    this.rippleTime  = CONFIG.ANIM.TAP_RIPPLE;
-    this.rippleAlpha = 0.7;
+    this.rippleTime = CONFIG.ANIM.TAP_RIPPLE;
   }
 
   update(dt) {
     if (this.shakeTime > 0) {
       this.shakeTime -= dt;
-      this.shakeX = Math.sin(this.shakeTime * 40) * 5 * (this.shakeTime / CONFIG.ANIM.CROP_SHAKE);
+      this.shakeX = Math.sin(this.shakeTime * 45) * 6 * (this.shakeTime / CONFIG.ANIM.CROP_SHAKE);
       if (this.shakeTime <= 0) this.shakeX = 0;
     }
-    if (this.rippleTime > 0) {
-      this.rippleTime -= dt;
-      this.rippleAlpha = (this.rippleTime / CONFIG.ANIM.TAP_RIPPLE) * 0.7;
-    }
-    if (this.flashTime > 0) this.flashTime -= dt;
+    if (this.rippleTime > 0) this.rippleTime -= dt;
+    if (this.flashTime  > 0) this.flashTime  -= dt;
+    if (this.threatened)     this.threatPulse += dt * 4;
   }
 
-  draw(ctx, px, py, tileSize) {
-    ctx.save(); // C6: isolate tile draw state
+  draw(ctx, px, py, tileSize, globalTime) {
+    ctx.save();
     const ts = tileSize;
-    const x  = px + this.shakeX;
-    const y  = py;
+    const x  = Math.round(px + this.shakeX);
+    const y  = Math.round(py);
 
-    // 3D tile faces
-    const topH = Math.max(6, Math.round(ts * 0.18));
-    const skew = Math.max(3, Math.round(ts * 0.08));
+    // ── 3D tile geometry ──
+    const topH = Math.max(8, Math.round(ts * 0.20));
+    const skew = Math.max(4, Math.round(ts * 0.09));
+
+    const hpFrac = this.hp / this.maxHp;
+
+    // TOP FACE — catches light, lighter color
+    let topColor, frontColor;
+    if (this.dead) {
+      topColor = '#BCA888'; frontColor = CONFIG.COLORS.tileDead;
+    } else if (hpFrac > 0.66) {
+      topColor = '#DEC070'; frontColor = CONFIG.COLORS.tileBase;
+    } else if (hpFrac > 0.33) {
+      topColor = '#C8A050'; frontColor = '#B08840';
+    } else {
+      topColor = '#B08840'; frontColor = '#906828';
+    }
 
     // Top face
-    const hpFrac = this.hp / this.maxHp;
-    if (this.dead) ctx.fillStyle = '#B09878';
-    else if (hpFrac > 0.66) ctx.fillStyle = '#D8B870';
-    else if (hpFrac > 0.33) ctx.fillStyle = '#C4A055';
-    else ctx.fillStyle = '#B08840';
+    ctx.fillStyle = topColor;
     ctx.beginPath();
     ctx.moveTo(x + skew, y);
     ctx.lineTo(x + ts + skew, y);
@@ -1165,201 +1174,230 @@ class CropTile {
     ctx.closePath();
     ctx.fill();
 
-    // Front face
-    if (this.dead) ctx.fillStyle = CONFIG.COLORS.tileDead;
-    else if (hpFrac > 0.66) ctx.fillStyle = CONFIG.COLORS.tileBase;
-    else if (hpFrac > 0.33) ctx.fillStyle = '#B89050';
-    else ctx.fillStyle = '#A07840';
+    // Top face highlight (light source top-left)
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.beginPath();
+    ctx.moveTo(x + skew, y);
+    ctx.lineTo(x + ts * 0.5 + skew, y);
+    ctx.lineTo(x + ts * 0.5, y + topH);
+    ctx.lineTo(x, y + topH);
+    ctx.closePath();
+    ctx.fill();
+
+    // FRONT FACE
+    ctx.fillStyle = frontColor;
     ctx.strokeStyle = CONFIG.COLORS.tileBorder;
     ctx.lineWidth = 1.5;
-    _roundRect(ctx, x, y + topH, ts, ts - topH, CONFIG.TILE_RADIUS * 0.7);
-    ctx.fill();
-    ctx.stroke();
+    _roundRect(ctx, x, y + topH, ts, ts - topH, CONFIG.TILE_RADIUS * 0.6);
+    ctx.fill(); ctx.stroke();
 
-    // Soil furrows
-    ctx.strokeStyle = 'rgba(0,0,0,0.07)';
+    // Front face ambient occlusion (bottom darker)
+    const aoG = ctx.createLinearGradient(0, y + topH, 0, y + ts);
+    aoG.addColorStop(0, 'rgba(0,0,0,0)');
+    aoG.addColorStop(1, 'rgba(0,0,0,0.12)');
+    ctx.fillStyle = aoG;
+    _roundRect(ctx, x, y + topH, ts, ts - topH, CONFIG.TILE_RADIUS * 0.6);
+    ctx.fill();
+
+    // Soil furrow lines
+    ctx.strokeStyle = 'rgba(0,0,0,0.08)';
     ctx.lineWidth = 1.5;
-    for (let i = 0; i < 2; i++) {
-      const fy = y + topH + 14 + i * 16;
+    for (let i = 0; i < 3; i++) {
+      const fy = y + topH + 10 + i * 15;
+      if (fy > y + ts - 8) break;
       ctx.beginPath();
       ctx.moveTo(x + 8, fy);
       ctx.quadraticCurveTo(x + ts / 2, fy + 3, x + ts - 8, fy);
       ctx.stroke();
     }
 
-    // Right side shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.14)';
+    // RIGHT SIDE FACE — shadow side
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
     ctx.beginPath();
-    ctx.moveTo(x + ts, y + topH);
+    ctx.moveTo(x + ts,        y + topH);
     ctx.lineTo(x + ts + skew, y);
-    ctx.lineTo(x + ts + skew, y + topH - 1);
-    ctx.lineTo(x + ts, y + topH * 2 - 1);
+    ctx.lineTo(x + ts + skew, y + topH * 0.85);
+    ctx.lineTo(x + ts,        y + topH * 2 - 2);
     ctx.closePath();
     ctx.fill();
 
-    // Damage flash overlay (G6)
+    // DAMAGE FLASH — red overlay
     if (this.flashTime > 0) {
-      const alpha = (this.flashTime / CONFIG.ANIM.GAMEOVER_FLASH) * 0.45;
-      ctx.fillStyle = `rgba(255,50,0,${alpha})`;
-      _roundRect(ctx, x, y + topH, ts, ts - topH, CONFIG.TILE_RADIUS * 0.7);
+      const fa = (this.flashTime / CONFIG.ANIM.DAMAGE_FLASH) * 0.5;
+      ctx.fillStyle = `rgba(220,30,0,${fa})`;
+      _roundRect(ctx, x, y + topH, ts, ts - topH, CONFIG.TILE_RADIUS * 0.6);
       ctx.fill();
     }
 
-    // Crop sprite
+    // THREAT PULSE — yellow glow when pest is on tile
+    if (this.threatened) {
+      const tp = 0.3 + Math.sin(this.threatPulse) * 0.25;
+      ctx.strokeStyle = `rgba(255,200,0,${tp})`;
+      ctx.lineWidth = 3;
+      _roundRect(ctx, x - 2, y + topH - 2, ts + 4, ts - topH + 4, CONFIG.TILE_RADIUS * 0.7);
+      ctx.stroke();
+    }
+
+    // CROP SPRITE — sway gently (ambient life)
     if (!this.dead) {
+      const swayAngle = Math.sin(globalTime * 0.8 + this.swayOffset) * 0.025;
       const cropCX = x + ts / 2 + skew * 0.15;
       const cropCY = y + topH + (ts - topH) * 0.85;
+      ctx.save();
+      ctx.translate(cropCX, cropCY);
+      ctx.rotate(swayAngle);
+      ctx.translate(-cropCX, -cropCY);
       Sprites.drawCrop(ctx, cropCX, cropCY, ts, this.cropType, this.stage, this.damaged);
+      ctx.restore();
     } else {
-      // V5: better dead tile — cross + wilted leaves instead of rectangle
+      // V5: improved dead tile — wilted crop silhouette
       const cx = x + ts / 2 + skew * 0.1;
-      const cy = y + topH + (ts - topH) * 0.6;
-      // Brown stump
-      ctx.fillStyle = '#6B4E2E';
-      _roundRect(ctx, cx - 3, cy - 8, 6, 20, 2);
-      ctx.fill();
-      // Wilted drooping leaves
-      ctx.strokeStyle = '#5A7A30';
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(cx, cy - 8);
-      ctx.quadraticCurveTo(cx - 14, cy - 18, cx - 10, cy - 28);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(cx, cy - 8);
-      ctx.quadraticCurveTo(cx + 14, cy - 18, cx + 10, cy - 28);
-      ctx.stroke();
-      // X mark
-      ctx.strokeStyle = 'rgba(200,40,0,0.6)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(cx - 8, cy - 4);
-      ctx.lineTo(cx + 8, cy + 12);
-      ctx.moveTo(cx + 8, cy - 4);
-      ctx.lineTo(cx - 8, cy + 12);
-      ctx.stroke();
+      const cy = y + topH + (ts - topH) * 0.58;
+      ctx.strokeStyle = '#8B6A3A'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      // Drooping stem
+      ctx.beginPath(); ctx.moveTo(cx, cy + 12); ctx.quadraticCurveTo(cx + 4, cy, cx, cy - 8); ctx.stroke();
+      // Two wilted leaves
+      ctx.strokeStyle = '#7A8A40'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(cx, cy - 2); ctx.quadraticCurveTo(cx - 12, cy - 16, cx - 8, cy - 24); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx, cy - 2); ctx.quadraticCurveTo(cx + 12, cy - 14, cx + 10, cy - 22); ctx.stroke();
+      // X
+      ctx.strokeStyle = 'rgba(200,30,0,0.65)'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.moveTo(cx - 7, cy + 6); ctx.lineTo(cx + 7, cy + 18); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + 7, cy + 6); ctx.lineTo(cx - 7, cy + 18); ctx.stroke();
     }
 
-    // HP dots
-    const dotR = Math.max(3, Math.round(tileSize * 0.05));
-    const dotSpacing = dotR * 3;
-    const dotsWidth  = (this.maxHp - 1) * dotSpacing;
-    const dotStartX  = x + ts / 2 - dotsWidth / 2;
-    const dotY       = y + ts - dotR - 2;
+    // HP DOTS
+    const dotR = Math.max(3.5, Math.round(tileSize * 0.052));
+    const dotGap = dotR * 2.8;
+    const dotsW  = (this.maxHp - 1) * dotGap;
+    const dotX0  = x + ts / 2 - dotsW / 2;
+    const dotY   = y + ts - dotR - 3;
     for (let i = 0; i < this.maxHp; i++) {
       const filled = i < this.hp;
-      const color  = !filled ? 'rgba(0,0,0,0.2)'
+      ctx.fillStyle = !filled ? 'rgba(0,0,0,0.2)'
         : this.hp === this.maxHp ? CONFIG.COLORS.hpGreen
         : this.hp === 2          ? CONFIG.COLORS.hpYellow
         : CONFIG.COLORS.hpRed;
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(dotStartX + i * dotSpacing, dotY, dotR, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(dotX0 + i * dotGap, dotY, dotR, 0, Math.PI * 2); ctx.fill();
+      // Dot gloss
+      if (filled) {
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.beginPath(); ctx.arc(dotX0 + i * dotGap - dotR * 0.3, dotY - dotR * 0.3, dotR * 0.4, 0, Math.PI * 2); ctx.fill();
+      }
     }
 
-    // V8: tap ripple ring
-    if (this.rippleAlpha > 0) {
-      const progress = 1 - this.rippleTime / CONFIG.ANIM.TAP_RIPPLE;
-      const r = ts * 0.3 + progress * ts * 0.4;
-      ctx.strokeStyle = `rgba(255,255,255,${this.rippleAlpha})`;
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.arc(x + ts / 2, y + topH + (ts - topH) / 2, r, 0, Math.PI * 2);
-      ctx.stroke();
+    // TAP RIPPLE
+    if (this.rippleTime > 0) {
+      const rp   = 1 - this.rippleTime / CONFIG.ANIM.TAP_RIPPLE;
+      const rr   = ts * 0.25 + rp * ts * 0.5;
+      const ra   = (1 - rp) * 0.65;
+      ctx.strokeStyle = `rgba(255,255,255,${ra})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x + ts / 2, y + topH + (ts - topH) / 2, rr, 0, Math.PI * 2); ctx.stroke();
     }
 
     ctx.restore();
   }
 }
 
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════
 // DOG ENTITY
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════
 class Dog {
   constructor(x, y) {
-    this.x         = x;
-    this.y         = y;
-    this.targetX   = x;
-    this.targetY   = y;
-    this.state     = 'idle';
-    this.animTime  = 0;
-    this.barkTime  = 0;
+    this.x = x; this.y = y;
+    this.targetX = x; this.targetY = y;
+    this.state    = 'idle';
+    this.animTime = 0;
+    this.barkTime = 0;
     this.barkBubbleAlpha = 0;
-    this.size      = 70;
+    this.size     = 70;
     this.dustParticles = [];
-    this.centerX   = x;
-    this.centerY   = y;
+    this.centerX  = x; this.centerY = y;
     this.onArrival = null;
     this.moveQueue = [];
-    // B1 fix: track *arrival* time for combo, not tap time
-    this.lastArrivalTime = -999; // game-clock seconds at last successful chase arrival
+    // C1 fix: properly initialised
+    this.lastArrivalTime = null;
+    // Anticipation squat before sprint
+    this._anticipateTime = 0;
+    this._anticipateTarget = null;
+    this._anticipateCallback = null;
+    // Trail — direction of travel for flip
+    this.facingRight = true;
+    // Idle bob phase
+    this._idlePhase = Math.random() * Math.PI * 2;
   }
 
   moveTo(tx, ty, onArrival) {
-    // Cancel any pending queue, go directly to new target
     this.moveQueue = [{ tx, ty, onArrival }];
-    this._startNextMove();
+    // A3: brief anticipation squat before sprinting
+    this._anticipateTime     = CONFIG.ANIM.DOG_ANTICIPATE;
+    this._anticipateTarget   = { tx, ty, onArrival };
+    this._anticipateCallback = null;
+    this.state = 'anticipate';
   }
 
   _startNextMove() {
     if (this.moveQueue.length === 0) return;
-    const next      = this.moveQueue.shift();
-    this.targetX    = next.tx;
-    this.targetY    = next.ty;
-    this.onArrival  = next.onArrival;
-    this.state      = 'running';
+    const next     = this.moveQueue.shift();
+    this.targetX   = next.tx;
+    this.targetY   = next.ty;
+    this.onArrival = next.onArrival;
+    this.state     = 'running';
+    // Set facing direction
+    this.facingRight = next.tx >= this.x;
   }
 
   bark() {
     this.barkTime        = CONFIG.DOG_BARK_DURATION;
     this.barkBubbleAlpha = 1;
-    // C3 fix: single place sets barking state
     this.state = 'barking';
   }
 
   update(dt) {
     this.animTime += dt;
 
+    if (this.state === 'anticipate') {
+      this._anticipateTime -= dt;
+      if (this._anticipateTime <= 0) this._startNextMove();
+      return;
+    }
+
     if (this.state === 'running') {
       const dx   = this.targetX - this.x;
       const dy   = this.targetY - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      const speed = CONFIG.DOG_SPEED_PX; // C5 fix: use config value
+      const speed = CONFIG.DOG_SPEED_PX;
+      this.facingRight = dx >= 0;
+
       if (dist < speed * dt + 2) {
-        this.x = this.targetX;
-        this.y = this.targetY;
-        if (this.onArrival) {
-          const cb = this.onArrival;
-          this.onArrival = null;
-          cb();
-        }
+        this.x = this.targetX; this.y = this.targetY;
+        if (this.onArrival) { const cb = this.onArrival; this.onArrival = null; cb(); }
         this.bark();
-        // Dust burst
-        for (let i = 0; i < 6; i++) {
+        // Dust burst on arrival
+        for (let i = 0; i < 8; i++) {
           this.dustParticles.push({
-            x: this.x + (Math.random() - 0.5) * 20,
-            y: this.y + 18,
-            vx: (Math.random() - 0.5) * 60,
-            vy: -Math.random() * 40 - 10,
-            life: 0.5, maxLife: 0.5,
-            r: Math.random() * 5 + 2
+            x: this.x + (Math.random() - 0.5) * 24,
+            y: this.y + 20,
+            vx: (Math.random() - 0.5) * 80,
+            vy: -Math.random() * 50 - 15,
+            life: 0.6, maxLife: 0.6, r: Math.random() * 6 + 2,
+            color: Math.random() > 0.5 ? '#D4A84A' : '#A07830',
           });
         }
         if (this.moveQueue.length > 0) this._startNextMove();
       } else {
         this.x += (dx / dist) * speed * dt;
         this.y += (dy / dist) * speed * dt;
-        // Trail dust
-        if (Math.random() < 0.2) {
+        // Running dust trail
+        if (Math.random() < 0.3) {
           this.dustParticles.push({
-            x: this.x + (Math.random() - 0.5) * 10,
-            y: this.y + 20,
-            vx: (Math.random() - 0.5) * 18,
-            vy: -Math.random() * 12 - 4,
-            life: 0.25, maxLife: 0.25,
-            r: Math.random() * 3 + 1.5
+            x: this.x + (Math.random() - 0.5) * 12,
+            y: this.y + 22,
+            vx: (Math.random() - 0.5) * 22,
+            vy: -Math.random() * 14 - 4,
+            life: 0.28, maxLife: 0.28, r: Math.random() * 3.5 + 1.5,
+            color: '#D4A84A',
           });
         }
       }
@@ -1370,122 +1408,172 @@ class Dog {
       const dy   = this.centerY - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > 5) {
-        this.x += (dx / dist) * 50 * dt;
-        this.y += (dy / dist) * 50 * dt;
+        this.x += (dx / dist) * 55 * dt;
+        this.y += (dy / dist) * 55 * dt;
       }
     }
 
-    if (this.barkTime > 0) {
-      this.barkTime -= dt;
-      this.barkBubbleAlpha = Math.min(1, this.barkTime / 0.3);
-      if (this.barkTime < 0) this.barkTime = 0;
+    if (this.barkTime > 0) { this.barkTime -= dt; if (this.barkTime < 0) this.barkTime = 0; }
+    if (this.barkTime <= 0 && this.barkBubbleAlpha > 0) {
+      this.barkBubbleAlpha = Math.max(0, this.barkBubbleAlpha - dt * 4);
     }
 
     this.dustParticles = this.dustParticles.filter(p => {
       p.life -= dt;
-      p.x    += p.vx * dt;
-      p.y    += p.vy * dt;
-      p.vy   += 80 * dt;
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 90 * dt;
       return p.life > 0;
     });
   }
 
   draw(ctx) {
-    ctx.save(); // C6: isolate dog draw state
-    // Dust
+    ctx.save();
+
+    // Dust particles
     this.dustParticles.forEach(p => {
-      ctx.globalAlpha = (p.life / p.maxLife) * 0.5;
-      ctx.fillStyle   = '#D4A84A';
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.globalAlpha = (p.life / p.maxLife) * 0.6;
+      ctx.fillStyle   = p.color;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
     });
     ctx.globalAlpha = 1;
 
-    Sprites.drawDog(ctx, this.x, this.y, this.size, this.state, this.animTime);
+    // Direction flip
+    if (!this.facingRight) {
+      ctx.save();
+      ctx.translate(this.x * 2, 0);
+      ctx.scale(-1, 1);
+    }
 
-    // Bark bubble — V7 fix: position relative to dog size
+    // A3: squash when anticipating
+    let scaleX = 1, scaleY = 1;
+    if (this.state === 'anticipate') {
+      const t = 1 - this.anticipateTime / CONFIG.ANIM.DOG_ANTICIPATE;
+      scaleX = 1 + Math.sin(t * Math.PI) * 0.12;
+      scaleY = 1 - Math.sin(t * Math.PI) * 0.1;
+    }
+
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.scale(scaleX, scaleY);
+    ctx.translate(-this.x, -this.y);
+    Sprites.drawDog(ctx, this.x, this.y, this.size, this.state, this.animTime);
+    ctx.restore();
+
+    if (!this.facingRight) ctx.restore();
+
+    // Bark bubble — relative to dog size (V7)
     if (this.barkBubbleAlpha > 0) {
       ctx.globalAlpha = this.barkBubbleAlpha;
-      const bubbleOffset = this.size * 0.85;
-      const bx = this.x - this.size * 0.18;
-      const by = this.y - bubbleOffset;
-      ctx.fillStyle   = '#FFF';
-      ctx.strokeStyle = '#DDD';
+      const bubOff = this.size * 0.9;
+      const bx = this.x - this.size * 0.15;
+      const by = this.y - bubOff;
+      // Bubble background
+      ctx.fillStyle   = '#FFFDF0';
+      ctx.strokeStyle = '#D0C080';
       ctx.lineWidth   = 2;
-      _roundRect(ctx, bx - 36, by - 22, 84, 30, 12);
+      _roundRect(ctx, bx - 38, by - 24, 90, 34, 14);
       ctx.fill(); ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(bx - 4, by + 8);
-      ctx.lineTo(bx - 14, by + 22);
-      ctx.lineTo(bx + 8, by + 8);
-      ctx.fillStyle = '#FFF';
+      // Bubble gloss
+      ctx.fillStyle = 'rgba(255,255,255,0.5)';
+      _roundRect(ctx, bx - 34, by - 20, 82, 14, 10);
       ctx.fill();
-      ctx.globalAlpha = this.barkBubbleAlpha;
-      ctx.fillStyle   = CONFIG.COLORS.textHead;
-      ctx.font        = `bold 14px 'Fredoka One', cursive`;
+      // Bubble tail
+      ctx.fillStyle = '#FFFDF0';
+      ctx.beginPath(); ctx.moveTo(bx - 2, by + 10); ctx.lineTo(bx - 14, by + 26); ctx.lineTo(bx + 10, by + 10); ctx.fill();
+      // Text
+      ctx.fillStyle   = '#3A3010';
+      ctx.font        = `bold 15px 'Fredoka One', cursive`;
       ctx.textAlign   = 'center';
-      ctx.fillText('WOOF! 🐾', bx + 6, by - 2);
+      ctx.fillText('WOOF! 🐾', bx + 7, by - 2);
+      ctx.globalAlpha = 1;
     }
+
+    // G7: direction indicator arrow when running
+    if (this.state === 'running') {
+      const dx = this.targetX - this.x;
+      const dy = this.targetY - this.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 30) {
+        const steps = Math.min(3, Math.floor(dist / 40));
+        for (let s = 0; s < steps; s++) {
+          const t = (s + 0.5) / steps;
+          const ax = this.x + dx * t;
+          const ay = this.y + dy * t;
+          const alpha = (1 - t) * 0.5;
+          const r = 5 - s;
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle   = '#F6D233';
+          ctx.beginPath(); ctx.arc(ax, ay, r, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+
     ctx.restore();
   }
 }
 
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════
 // PEST ENTITY
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════
 class Pest {
   constructor(type, tileIndex, tileX, tileY, tileSize) {
-    this.type       = type;
-    this.tileIndex  = tileIndex;
-    this.x          = tileX + tileSize / 2;
-    this.y          = tileY + tileSize / 2;
-    this.tileSize   = tileSize;
-    this.timer      = CONFIG.PEST_TIMERS[type];
-    this.maxTimer   = this.timer;
-    this.alive      = true;
-    this.fleeing    = false;
-    this.fleeTime   = 0;
+    this.type      = type;
+    this.tileIndex = tileIndex;
+    this.x = tileX + tileSize / 2;
+    this.y = tileY + tileSize / 2;
+    this.tileSize  = tileSize;
+    this.timer     = CONFIG.PEST_TIMERS[type];
+    this.maxTimer  = this.timer;
+    this.alive     = true;
+    this.fleeing   = false;
+    this.fleeTime  = 0;
     this.fleeMaxTime = CONFIG.ANIM.PEST_FLEE;
-    this.spawnTime   = 0;
+    // Elastic spawn
+    this.spawnTime    = 0;
     this.spawnMaxTime = CONFIG.ANIM.PEST_SPAWN;
-    this.animTime   = 0;
-    this.scale      = 0;
-    this.size       = 50;
+    this.animTime  = 0;
+    this.scale     = 0;
+    this.size      = 52;
 
-    // Rabbit state (managed by Spawner for G8 hop path)
-    this.isHopping  = false;
-    this.settled    = false;
-    this.hopPath    = [tileIndex];
+    // Rabbit
+    this.isHopping = false;
+    this.settled   = false;
+    this.hopPath   = [tileIndex];
     this.hopPathIdx = 0;
-    this.hopTimer   = 0;
+    this.hopTimer  = 0;
 
-    this.flyInY  = type === 'crow' ? -60 : this.y;
-    this.startY  = this.y;
+    // Crow
+    this.flyInY  = type === 'crow' ? tileY - 130 : tileY + tileSize / 2;
+    this.startY  = tileY + tileSize / 2;
+    if (type === 'crow') this.y = this.flyInY;
 
     this.secondaryTileIndex = null;
 
-    this.fleeVx = (Math.random() - 0.5) * 200;
-    this.fleeVy = type === 'crow' ? -300 : (Math.random() - 0.5) * 200;
-    if (type === 'mole') { this.fleeVy = 200; this.fleeVx = 0; }
+    // Flee vectors
+    this.fleeVx = (Math.random() - 0.5) * 220;
+    this.fleeVy = type === 'crow' ? -(280 + Math.random() * 80) : (Math.random() - 0.5) * 220;
+    if (type === 'mole') { this.fleeVy = 180 + Math.random() * 80; this.fleeVx = 0; }
+    if (type === 'rabbit') { this.fleeVx = (Math.random() > 0.5 ? 1 : -1) * (180 + Math.random() * 60); this.fleeVy = -60; }
 
     this.particles = [];
+
+    // Warning state (near expiry)
+    this._wasWarning = false;
   }
 
   startFlee() {
     this.fleeing  = true;
     this.fleeTime = this.fleeMaxTime;
     this.alive    = false;
-    const count   = this.type === 'crow' ? 5 : 3;
-    for (let i = 0; i < count; i++) {
+    // Flee particles
+    const colors = { crow: '#1A1A2E', mole: '#C4A35A', cricket: '#4CAF50', rabbit: '#E8E8E8' };
+    for (let i = 0; i < 6; i++) {
       this.particles.push({
         x: this.x, y: this.y,
-        vx: (Math.random() - 0.5) * 130,
-        vy: (Math.random() - 0.5) * 130 - 50,
-        life: 0.6, maxLife: 0.6,
-        color: this.type === 'crow' ? '#1A1A2E'
-             : this.type === 'mole' ? '#C4A35A' : '#4CAF50',
-        r: Math.random() * 4 + 2
+        vx: (Math.random() - 0.5) * 150,
+        vy: (Math.random() - 0.5) * 150 - 60,
+        life: 0.65, maxLife: 0.65,
+        color: colors[this.type], r: Math.random() * 5 + 2,
       });
     }
   }
@@ -1493,56 +1581,70 @@ class Pest {
   update(dt) {
     this.animTime += dt;
 
-    // Spawn scale-in
+    // A1: elastic overshoot spawn scale
     if (this.spawnTime < this.spawnMaxTime) {
       this.spawnTime += dt;
       const t = this.spawnTime / this.spawnMaxTime;
-      this.scale = t < 0.7 ? (t / 0.7) * 1.2 : 1.2 - (t - 0.7) / 0.3 * 0.2;
+      // Overshoot spring: overshoots to 1.3, bounces to 1.0
+      if (t < 0.6)      this.scale = (t / 0.6) * 1.35;
+      else if (t < 0.8) this.scale = 1.35 - ((t - 0.6) / 0.2) * 0.4;
+      else              this.scale = 0.95 + ((t - 0.8) / 0.2) * 0.05;
     } else {
       this.scale = 1;
     }
 
     // Crow fly-in
     if (this.type === 'crow' && this.spawnTime < this.spawnMaxTime) {
-      const t = this.spawnTime / this.spawnMaxTime;
-      this.y = this.flyInY + (this.startY - this.flyInY) * t;
+      const t = Math.min(1, this.spawnTime / this.spawnMaxTime);
+      this.y = this.flyInY + (this.startY - this.flyInY) * _easeOutBounce(t);
     }
 
-    // B2 fix: rabbit timer only ticks after settled (managed by spawner)
-    if (this.alive && this.scale >= 0.9 && (this.type !== 'rabbit' || this.settled)) {
+    // Timer countdown (only when settled / not rabbit hopping)
+    if (this.alive && this.scale >= 0.95 && (this.type !== 'rabbit' || this.settled)) {
       this.timer -= dt;
     }
 
+    // Flee movement
     if (this.fleeing) {
       this.fleeTime -= dt;
       this.x += this.fleeVx * dt;
       this.y += this.fleeVy * dt;
+      if (this.type === 'crow') this.fleeVy -= 60 * dt; // accelerate upward
     }
 
+    // Particles
     this.particles = this.particles.filter(p => {
-      p.life -= dt;
-      p.x    += p.vx * dt;
-      p.y    += p.vy * dt;
-      p.vy   += 80 * dt;
+      p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 90 * dt;
       return p.life > 0;
     });
   }
 
-  get isDone()     { return this.fleeing && this.fleeTime <= 0 && this.particles.length === 0; }
-  get timerFrac()  { return Math.max(0, this.timer / this.maxTimer); }
+  get isDone()    { return this.fleeing && this.fleeTime <= 0 && this.particles.length === 0; }
+  get timerFrac() { return Math.max(0, this.timer / this.maxTimer); }
 
   draw(ctx) {
-    ctx.save(); // C6: isolate pest draw state
+    ctx.save();
+
+    // Flee particles
     this.particles.forEach(p => {
-      ctx.globalAlpha = p.life / p.maxLife;
+      ctx.globalAlpha = (p.life / p.maxLife);
       ctx.fillStyle   = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
     });
     ctx.globalAlpha = 1;
 
     if (!this.alive && !this.fleeing) { ctx.restore(); return; }
+
+    // Shadow under pest
+    if (!this.fleeing) {
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle   = '#000';
+      ctx.beginPath();
+      ctx.ellipse(this.x, this.y + this.size * 0.5, this.size * 0.35 * this.scale, this.size * 0.1 * this.scale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
 
     ctx.translate(this.x, this.y);
     ctx.scale(this.scale, this.scale);
@@ -1554,64 +1656,95 @@ class Pest {
       case 'rabbit':  Sprites.drawRabbit(ctx, 0, 0, this.size, this.animTime, this.isHopping); break;
     }
 
-    // V4 fix: timer ring drawn ABOVE pest (offset upward), not centred on it
-    if (this.alive && this.scale > 0.5 && (this.type !== 'rabbit' || this.settled)) {
-      const ringY  = -this.size * 0.72; // above the sprite
-      const r      = 14;
+    // V4 fix + G4 fix: timer ring drawn ABOVE sprite, larger, readable
+    if (this.alive && this.scale > 0.6 && (this.type !== 'rabbit' || this.settled)) {
+      const ringY  = -this.size * 0.68;
+      const r      = 16;
       const frac   = this.timerFrac;
-      const color  = frac > 0.5 ? '#5CB85C' : frac > 0.25 ? '#F0AD4E' : '#D9534F';
-      // Background
-      ctx.fillStyle   = 'rgba(0,0,0,0.35)';
-      ctx.beginPath(); ctx.arc(0, ringY, r + 2, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle   = '#FFF';
+      const isUrgent = frac < 0.35;
+
+      // Ring background
+      ctx.fillStyle = isUrgent ? 'rgba(200,0,0,0.85)' : 'rgba(0,0,0,0.45)';
+      ctx.beginPath(); ctx.arc(0, ringY, r + 3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#FFF';
       ctx.beginPath(); ctx.arc(0, ringY, r, 0, Math.PI * 2); ctx.fill();
+
       // Timer arc
-      ctx.strokeStyle = color;
-      ctx.lineWidth   = 4;
+      const arcColor = frac > 0.5 ? '#5CB85C' : frac > 0.25 ? '#F0AD4E' : '#E03030';
+      ctx.strokeStyle = arcColor;
+      ctx.lineWidth   = 5;
       ctx.lineCap     = 'round';
       ctx.beginPath();
-      ctx.arc(0, ringY, r - 2, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
+      ctx.arc(0, ringY, r - 2.5, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
       ctx.stroke();
-      // Remaining seconds text
-      const secs = Math.ceil(this.timer);
-      ctx.fillStyle = frac > 0.5 ? '#3A4A5C' : '#C02020';
-      ctx.font      = `bold 10px 'Fredoka One', cursive`;
-      ctx.textAlign = 'center';
-      ctx.fillText(secs, 0, ringY + 4);
+
+      // Seconds text — G4 fix: bigger, readable
+      ctx.fillStyle   = isUrgent ? '#E03030' : '#3A3010';
+      ctx.font        = `bold 13px 'Fredoka One', cursive`;
+      ctx.textAlign   = 'center';
+      ctx.fillText(Math.ceil(Math.max(0, this.timer)), 0, ringY + 4.5);
+
+      // Urgent pulse ring
+      if (isUrgent && this.animTime % 0.5 < 0.25) {
+        ctx.strokeStyle = 'rgba(220,30,0,0.4)';
+        ctx.lineWidth   = 2;
+        ctx.beginPath();
+        ctx.arc(0, ringY, r + 5 + Math.sin(this.animTime * 8) * 3, 0, Math.PI * 2);
+        ctx.stroke();
+      }
     }
 
     ctx.restore();
   }
 }
 
-// ─────────────────────────────────────────────
-// SCORE POPUP ENTITY
-// ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════
+// SCORE POPUP
+// ═══════════════════════════════════════════════
 class ScorePopup {
   constructor(x, y, text, color = '#F6D233') {
-    this.x       = x;
-    this.y       = y;
-    this.text    = text;
-    this.color   = color;
-    this.life    = CONFIG.ANIM.SCORE_POPUP;
+    this.x = x; this.y = y; this.text = text; this.color = color;
+    this.life = CONFIG.ANIM.SCORE_POPUP;
     this.maxLife = this.life;
   }
-  update(dt)    { this.life -= dt; }
-  get isDone()  { return this.life <= 0; }
+  update(dt) { this.life -= dt; }
+  get isDone() { return this.life <= 0; }
   draw(ctx) {
     const t = this.life / this.maxLife;
     ctx.save();
-    ctx.globalAlpha = t;
-    ctx.translate(this.x, this.y - (1 - t) * 45);
-    const sc = 0.7 + t * 0.5;
+    ctx.globalAlpha = Math.min(1, t * 2); // quick fade in, slow fade out
+    // A2 fix: proper easing — pops in small, grows to full, then fades
+    const sc = t > 0.7 ? 0.6 + (1 - t) / 0.3 * 0.6 : 1.2 - (0.7 - t) / 0.7 * 0.2;
+    ctx.translate(this.x, this.y - (1 - t) * 50);
     ctx.scale(sc, sc);
-    ctx.font        = `bold 22px 'Fredoka One', cursive`;
+    ctx.font        = `bold 24px 'Fredoka One', cursive`;
     ctx.textAlign   = 'center';
-    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-    ctx.lineWidth   = 4;
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth   = 5;
     ctx.strokeText(this.text, 0, 0);
     ctx.fillStyle   = this.color;
     ctx.fillText(this.text, 0, 0);
     ctx.restore();
   }
+}
+
+// ── HELPERS ──────────────────────────────────────
+function _roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+function _easeOutBounce(t) {
+  if (t < 1/2.75) return 7.5625 * t * t;
+  if (t < 2/2.75) { t -= 1.5/2.75;   return 7.5625 * t * t + 0.75; }
+  if (t < 2.5/2.75) { t -= 2.25/2.75; return 7.5625 * t * t + 0.9375; }
+  t -= 2.625/2.75; return 7.5625 * t * t + 0.984375;
 }
