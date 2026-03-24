@@ -106,9 +106,13 @@ class UI {
   // ── HUD ──────────────────────────────────────
   drawHUD(ctx, cw, ch) {
     const pad = 14;
+    // Score: top-left
     this._drawScoreCapsule(ctx, pad, pad);
+    // Timer: top-centre
     this._drawTimer(ctx, cw / 2, pad + 30);
-    this._drawComboBadge(ctx, cw - pad, pad);
+    // Combo badge: top-left, below score capsule (avoids top-right pause button)
+    this._drawComboBadge(ctx, pad + 72, pad + 52);
+    // Score popups
     this.scorePopups.forEach(p => p.draw(ctx));
   }
 
@@ -195,10 +199,10 @@ class UI {
     ctx.fillText(timeStr, cx, cy + 5);
   }
 
-  _drawComboBadge(ctx, rx, y) {
+  _drawComboBadge(ctx, lx, y) {
     if (this.comboMultiplier <= 1 && this.comboCount < CONFIG.COMBO_THRESHOLDS[0]) return;
     ctx.save();
-    ctx.translate(rx - 36, y + 22);
+    ctx.translate(lx + 22, y + 22);
     ctx.scale(this.comboPulseScale, this.comboPulseScale);
     // Shadow
     ctx.globalAlpha = 0.2;
@@ -437,178 +441,202 @@ class UI {
   }
 
   // ── READY / HERO SCREEN ───────────────────────
-  // Styled after the "Save the Farm!" hero art:
-  // Farm landscape bg, wooden title banner, running dog, pest cameos, play button
   drawReady(ctx, cw, ch) {
-    // ── SKY ──
-    const skyG = ctx.createLinearGradient(0, 0, 0, ch * 0.55);
-    skyG.addColorStop(0, '#4AB8F0');
-    skyG.addColorStop(0.6, '#87CEEB');
-    skyG.addColorStop(1, '#C8E8F8');
+    const t = this._readyAnim || 0;
+    // Key Y references — everything anchors relative to these
+    const HORIZON   = ch * 0.50;  // where sky meets ground
+    const GROUND_Y  = HORIZON;
+    const FENCE_Y   = GROUND_Y + 8;
+
+    // ── 1. SKY ──
+    const skyG = ctx.createLinearGradient(0, 0, 0, HORIZON);
+    skyG.addColorStop(0,   '#3AAEE0');
+    skyG.addColorStop(0.7, '#87CEEB');
+    skyG.addColorStop(1,   '#C8E8F8');
     ctx.fillStyle = skyG;
-    ctx.fillRect(0, 0, cw, ch);
+    ctx.fillRect(0, 0, cw, HORIZON + 2);
 
-    // Clouds
-    _heroCloud(ctx, cw * 0.12, ch * 0.08, 60);
-    _heroCloud(ctx, cw * 0.45, ch * 0.05, 80);
-    _heroCloud(ctx, cw * 0.78, ch * 0.10, 55);
-    _heroCloud(ctx, cw * 0.62, ch * 0.18, 40);
+    // ── 2. CLOUDS (sky only) ──
+    _heroCloud(ctx, cw * 0.10, ch * 0.07, Math.min(64, cw * 0.15));
+    _heroCloud(ctx, cw * 0.48, ch * 0.04, Math.min(80, cw * 0.18));
+    _heroCloud(ctx, cw * 0.80, ch * 0.09, Math.min(55, cw * 0.13));
 
-    // ── DISTANT HILLS ──
-    ctx.fillStyle = '#6BBF3A';
+    // ── 3. DISTANT HILLS (sit on horizon) ──
+    ctx.fillStyle = '#5AB030';
     ctx.beginPath();
-    ctx.ellipse(cw * 0.2, ch * 0.45, cw * 0.35, ch * 0.18, 0, 0, Math.PI * 2);
+    ctx.ellipse(cw * 0.22, HORIZON, cw * 0.38, ch * 0.20, 0, Math.PI, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#78CC44';
+    ctx.fillStyle = '#6DC038';
     ctx.beginPath();
-    ctx.ellipse(cw * 0.75, ch * 0.44, cw * 0.32, ch * 0.16, 0, 0, Math.PI * 2);
+    ctx.ellipse(cw * 0.72, HORIZON, cw * 0.34, ch * 0.18, 0, Math.PI, Math.PI * 2);
     ctx.fill();
 
-    // ── BARN (distant left) ──
-    _heroBarn(ctx, cw * 0.08, ch * 0.28, 70);
+    // ── 4. BARN — sits ON horizon (base at HORIZON) ──
+    const barnH = Math.min(110, ch * 0.22);
+    const barnW = barnH * 0.75;
+    const barnX = cw * 0.06;
+    const barnBaseY = HORIZON; // base of barn at horizon
+    _heroBarn(ctx, barnX + barnW / 2, barnBaseY, barnW);
 
-    // ── WINDMILL (distant right) ──
-    _heroWindmill(ctx, cw * 0.88, ch * 0.26, 55, this._readyAnim || 0);
+    // ── 5. WINDMILL — sits ON horizon ──
+    const wmH = Math.min(100, ch * 0.20);
+    const wmX = cw * 0.86;
+    _heroWindmill(ctx, wmX, HORIZON, wmH, t);
 
-    // ── GROUND ──
-    const groundG = ctx.createLinearGradient(0, ch * 0.52, 0, ch);
-    groundG.addColorStop(0, '#7DC428');
-    groundG.addColorStop(0.3, '#6BB820');
-    groundG.addColorStop(1, '#558C10');
+    // ── 6. GROUND ──
+    const groundG = ctx.createLinearGradient(0, GROUND_Y, 0, ch);
+    groundG.addColorStop(0,   '#7DC428');
+    groundG.addColorStop(0.25,'#6BB820');
+    groundG.addColorStop(1,   '#4A8C10');
     ctx.fillStyle = groundG;
-    ctx.fillRect(0, ch * 0.52, cw, ch);
+    ctx.fillRect(0, GROUND_Y, cw, ch - GROUND_Y);
 
-    // Ground grass texture stripes
-    ctx.fillStyle = 'rgba(0,0,0,0.04)';
-    for (let gx = 0; gx < cw; gx += 28) ctx.fillRect(gx, ch * 0.52, 12, ch);
+    // Subtle grass stripe texture
+    ctx.fillStyle = 'rgba(0,0,0,0.035)';
+    for (let gx = -10; gx < cw; gx += 30) ctx.fillRect(gx, GROUND_Y, 14, ch);
 
-    // ── DIRT PATH (center) ──
-    const pathG = ctx.createLinearGradient(0, ch * 0.55, 0, ch);
-    pathG.addColorStop(0, '#C8954A');
+    // Ground edge highlight
+    ctx.fillStyle = '#92D42E';
+    ctx.fillRect(0, GROUND_Y, cw, 5);
+
+    // ── 7. DIRT PATH ──
+    const pathG = ctx.createLinearGradient(0, GROUND_Y, 0, ch);
+    pathG.addColorStop(0, '#D4A050');
     pathG.addColorStop(1, '#A07030');
     ctx.fillStyle = pathG;
     ctx.beginPath();
-    ctx.moveTo(cw * 0.38, ch * 0.54);
-    ctx.quadraticCurveTo(cw * 0.5, ch * 0.65, cw * 0.42, ch);
+    ctx.moveTo(cw * 0.40, FENCE_Y + 8);
+    ctx.quadraticCurveTo(cw * 0.50, FENCE_Y + ch * 0.12, cw * 0.42, ch);
     ctx.lineTo(cw * 0.58, ch);
-    ctx.quadraticCurveTo(cw * 0.62, ch * 0.65, cw * 0.62, ch * 0.54);
+    ctx.quadraticCurveTo(cw * 0.60, FENCE_Y + ch * 0.12, cw * 0.60, FENCE_Y + 8);
     ctx.closePath();
     ctx.fill();
 
-    // ── FENCE ──
-    _heroFenceRow(ctx, 0, cw, ch * 0.56);
+    // ── 8. FENCE ROW ──
+    _heroFenceRow(ctx, 0, cw, FENCE_Y);
 
-    // ── CROP ROWS (background) ──
-    const cropColors = ['#4CAF50','#F6D233','#FF6B00','#4CAF50'];
-    for (let ci = 0; ci < 4; ci++) {
-      const cx2 = cw * (0.1 + ci * 0.22);
-      const cy2 = ch * 0.64;
-      for (let r = 0; r < 3; r++) {
-        ctx.fillStyle = cropColors[ci];
+    // ── 9. CROPS (perspective-scaled rows) ──
+    const cropDefs = [
+      { x: 0.12, color: '#F6D233', stem: '#4A9B14', label: '🌾' },
+      { x: 0.30, color: '#FF7200', stem: '#4A9B14', label: '🥕' },
+      { x: 0.62, color: '#4CAF50', stem: '#2E7D32', label: '🌽' },
+      { x: 0.80, color: '#F6D233', stem: '#4A9B14', label: '🌻' },
+    ];
+    cropDefs.forEach(({ x, color, stem }) => {
+      for (let row = 0; row < 3; row++) {
+        const py = FENCE_Y + 28 + row * 28;
+        const sc = 0.6 + row * 0.2; // perspective scale
+        const px = cw * x + row * 14;
+        // Stem
+        ctx.fillStyle = stem;
+        ctx.fillRect(px - 2 * sc, py - 28 * sc, 4 * sc, 28 * sc);
+        // Head
+        ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.arc(cx2 + r * 18, cy2 + r * 12, 8 + r * 2, 0, Math.PI * 2);
+        ctx.arc(px, py - 28 * sc, 9 * sc, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#2E7D32';
+        // Shine
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
         ctx.beginPath();
-        ctx.rect(cx2 + r * 18 - 2, cy2 + r * 12 + 6, 4, 16);
+        ctx.arc(px - 2 * sc, py - 31 * sc, 3 * sc, 0, Math.PI * 2);
         ctx.fill();
       }
-    }
+    });
 
-    // ── SOIL MOUNDS / PEST HINTS ──
-    // Mole mound (bottom-left)
+    // ── 10. PESTS (cameos grounded properly) ──
+    // Mole — emerging from dirt mound at bottom-left, ON the ground
+    const moleX = cw * 0.12;
+    const moleGroundY = ch * 0.80;
+    const moleSize = Math.min(48, cw * 0.11);
     ctx.fillStyle = '#8B6914';
-    ctx.beginPath();
-    ctx.ellipse(cw * 0.14, ch * 0.82, 32, 14, 0, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.ellipse(moleX, moleGroundY + moleSize * 0.15, moleSize * 0.7, moleSize * 0.22, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#A0784A';
-    ctx.beginPath();
-    ctx.ellipse(cw * 0.14, ch * 0.80, 24, 10, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Mini mole peeping
-    Sprites.drawMole(ctx, cw * 0.14, ch * 0.76, 38);
+    ctx.beginPath(); ctx.ellipse(moleX, moleGroundY + moleSize * 0.1, moleSize * 0.55, moleSize * 0.16, 0, 0, Math.PI * 2); ctx.fill();
+    Sprites.drawMole(ctx, moleX, moleGroundY - moleSize * 0.1, moleSize, t);
 
-    // Crow flying (top-right area)
+    // Crow — flying in sky (above horizon)
     ctx.save();
-    ctx.translate(cw * 0.82, ch * 0.35);
-    ctx.scale(0.9, 0.9);
-    Sprites.drawCrow(ctx, 0, 0, 44, this._readyAnim || 0);
-    ctx.restore();
-
-    // Rabbit peeking right edge
-    ctx.save();
-    ctx.translate(cw * 0.88, ch * 0.72);
+    ctx.translate(cw * 0.80, HORIZON - ch * 0.14);
     ctx.scale(0.85, 0.85);
-    Sprites.drawRabbit(ctx, 0, 0, 44, this._readyAnim || 0);
+    Sprites.drawCrow(ctx, 0, 0, Math.min(46, cw * 0.11), t);
     ctx.restore();
 
-    // ── REX RUNNING ──
-    const dogScale = Math.min(1.4, cw / 340);
+    // Rabbit — sitting on ground, right side
+    const rabX = cw * 0.88;
+    const rabY = ch * 0.76;
+    const rabSize = Math.min(44, cw * 0.10);
     ctx.save();
-    ctx.translate(cw * 0.5, ch * 0.7);
-    ctx.scale(dogScale, dogScale);
-    Sprites.drawDog(ctx, 0, 0, 80, 'running', this._readyAnim || 0);
+    ctx.translate(rabX, rabY);
+    ctx.scale(0.8, 0.8);
+    Sprites.drawRabbit(ctx, 0, 0, rabSize * 1.2, t);
     ctx.restore();
 
-    // ── WOODEN TITLE BANNER ──
-    const bannerW = Math.min(cw - 24, 420);
-    const bannerH = 100;
+    // Cricket swarm — mid-ground
+    ctx.save();
+    ctx.translate(cw * 0.28, ch * 0.65);
+    ctx.scale(0.75, 0.75);
+    Sprites.drawCricketSwarm(ctx, 0, 0, Math.min(42, cw * 0.10), t);
+    ctx.restore();
+
+    // ── 11. REX RUNNING — large, centred, grounded ──
+    const dogSize = Math.min(100, cw * 0.24);
+    const dogX = cw * 0.50;
+    const dogGroundY = ch * 0.78; // paws at this Y
+    ctx.save();
+    ctx.translate(dogX, dogGroundY);
+    const dogS = dogSize / 90;
+    ctx.scale(dogS, dogS);
+    Sprites.drawDog(ctx, 0, 0, 90, 'running', t);
+    ctx.restore();
+
+    // ── 12. WOODEN TITLE BANNER ──
+    const bannerW = Math.min(cw - 20, 400);
+    const bannerH = Math.min(100, ch * 0.18);
     const bannerX = (cw - bannerW) / 2;
-    const bannerY = ch * 0.06;
+    const bannerY = ch * 0.04;
     _heroWoodBanner(ctx, bannerX, bannerY, bannerW, bannerH);
 
-    // Title text — "Save the" (smaller, white)
-    ctx.fillStyle = '#FFF';
-    ctx.strokeStyle = '#7A3A00';
-    ctx.lineWidth = 5;
-    ctx.font = `bold ${Math.round(bannerH * 0.28)}px 'Fredoka One', cursive`;
+    const titleSize  = Math.round(bannerH * 0.26);
+    const farmSize   = Math.round(bannerH * 0.50);
     ctx.textAlign = 'center';
-    ctx.strokeText('Save the', cw / 2, bannerY + bannerH * 0.38);
-    ctx.fillText('Save the', cw / 2, bannerY + bannerH * 0.38);
-
-    // "FARM!" — big yellow with shadow
-    ctx.font = `bold ${Math.round(bannerH * 0.52)}px 'Fredoka One', cursive`;
-    ctx.strokeStyle = '#7A3A00';
-    ctx.lineWidth = 7;
+    ctx.strokeStyle = '#5A2800'; ctx.lineWidth = 5;
+    ctx.font = `bold ${titleSize}px 'Fredoka One', cursive`;
+    ctx.fillStyle = '#FFF';
+    ctx.strokeText('Save the', cw / 2, bannerY + bannerH * 0.36);
+    ctx.fillText('Save the',  cw / 2, bannerY + bannerH * 0.36);
+    ctx.font = `bold ${farmSize}px 'Fredoka One', cursive`;
+    ctx.lineWidth = 8;
     ctx.strokeText('FARM!', cw / 2, bannerY + bannerH * 0.88);
     ctx.fillStyle = '#F6D233';
-    ctx.fillText('FARM!', cw / 2, bannerY + bannerH * 0.88);
-    // Yellow outline shine
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-    ctx.lineWidth = 2;
-    ctx.strokeText('FARM!', cw / 2, bannerY + bannerH * 0.88);
+    ctx.fillText('FARM!',  cw / 2, bannerY + bannerH * 0.88);
 
-    // ── INFO STRIP ──
-    const stripY = ch * 0.46;
-    const stripH = 34;
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    _uiRoundRect(ctx, cw * 0.1, stripY, cw * 0.8, stripH, stripH / 2);
+    // ── 13. HINT STRIP ──
+    const stripY = HORIZON - 36;
+    const stripH = 30;
+    ctx.fillStyle = 'rgba(0,0,0,0.38)';
+    _uiRoundRect(ctx, cw * 0.08, stripY, cw * 0.84, stripH, stripH / 2);
     ctx.fill();
     ctx.fillStyle = '#FFF';
-    ctx.font = `${Math.round(stripH * 0.45)}px 'Fredoka One', cursive`;
+    ctx.font = `${Math.min(14, Math.round(stripH * 0.46))}px 'Fredoka One', cursive`;
     ctx.textAlign = 'center';
-    ctx.fillText('Tap pests before they eat your crops! 🌾', cw / 2, stripY + stripH * 0.66);
+    ctx.fillText('Tap pests before they eat your crops! 🌾', cw / 2, stripY + stripH * 0.68);
 
-    // ── PLAY BUTTON ──
-    const btnW = Math.min(200, cw * 0.52);
-    const btnH = 58;
+    // ── 14. PLAY BUTTON ──
+    const btnW = Math.min(200, cw * 0.54);
+    const btnH = Math.min(58, ch * 0.075);
     const btnX = (cw - btnW) / 2;
-    const btnY = ch * 0.84;
-    // Pulse glow
-    const pulse = 0.85 + Math.sin((this._readyAnim || 0) * 3) * 0.15;
+    const btnY = ch * 0.86;
+    const pulse = 1 + Math.sin(t * 2.5) * 0.04; // gentle pulse only
     ctx.save();
     ctx.translate(btnX + btnW / 2, btnY + btnH / 2);
     ctx.scale(pulse, pulse);
     ctx.translate(-(btnX + btnW / 2), -(btnY + btnH / 2));
-    // Outer glow
     ctx.shadowColor = CONFIG.COLORS.btnGreen;
-    ctx.shadowBlur = 18;
+    ctx.shadowBlur = 12;
     _drawGlossyBtn(ctx, btnX, btnY, btnW, btnH, CONFIG.COLORS.btnGreen, '#4A8E00', '#FFF', '▶  PLAY NOW');
     ctx.restore();
 
-    this._playBtn = { x: btnX - 20, y: btnY - 10, w: btnW + 40, h: btnH + 20 };
-    // Animate
-    this._readyAnim = ((this._readyAnim || 0) + 0.016);
+    this._playBtn = { x: btnX - 16, y: btnY - 12, w: btnW + 32, h: btnH + 24 };
   }
 
   hitTestReady(px, py) {
@@ -692,46 +720,102 @@ function _heroCloud(ctx, cx, cy, r) {
   });
 }
 
-function _heroBarn(ctx, x, y, size) {
-  const s = size / 60;
+// Barn: x,y = base centre (bottom of structure)
+function _heroBarn(ctx, x, y, width) {
+  const w = width, h = w * 1.4;
   ctx.save(); ctx.translate(x, y);
-  // Main body
-  ctx.fillStyle = '#C0302A';
-  ctx.fillRect(-20*s, 0, 40*s, 30*s);
+  // Body — red
+  const bodyG = ctx.createLinearGradient(-w/2, 0, w/2, 0);
+  bodyG.addColorStop(0, '#C03020');
+  bodyG.addColorStop(0.5,'#D83828');
+  bodyG.addColorStop(1, '#A82818');
+  ctx.fillStyle = bodyG;
+  ctx.fillRect(-w/2, -h * 0.6, w, h * 0.6);
+  // Side shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.fillRect(w/2 - w*0.08, -h*0.6, w*0.08, h*0.6);
   // Roof
-  ctx.fillStyle = '#8B1A1A';
+  ctx.fillStyle = '#8B1A10';
   ctx.beginPath();
-  ctx.moveTo(-26*s, 0); ctx.lineTo(0, -22*s); ctx.lineTo(26*s, 0);
+  ctx.moveTo(-w/2 - w*0.08, -h*0.6);
+  ctx.lineTo(0, -h);
+  ctx.lineTo(w/2 + w*0.08, -h*0.6);
   ctx.closePath(); ctx.fill();
-  // Door
-  ctx.fillStyle = '#5A2A00';
-  ctx.fillRect(-6*s, 14*s, 12*s, 16*s);
-  // Loft window
-  ctx.fillStyle = '#F6D233';
+  // Roof highlight
+  ctx.fillStyle = 'rgba(255,255,255,0.1)';
   ctx.beginPath();
-  ctx.arc(0, -6*s, 5*s, 0, Math.PI * 2); ctx.fill();
+  ctx.moveTo(-w/2, -h*0.6);
+  ctx.lineTo(0, -h);
+  ctx.lineTo(0, -h*0.6);
+  ctx.closePath(); ctx.fill();
+  // Door (double)
+  ctx.fillStyle = '#5A2800';
+  ctx.fillRect(-w*0.18, -h*0.42, w*0.16, h*0.42);
+  ctx.fillRect( w*0.02, -h*0.42, w*0.16, h*0.42);
+  ctx.strokeStyle = '#3A1400'; ctx.lineWidth = 1.5;
+  ctx.strokeRect(-w*0.18, -h*0.42, w*0.16, h*0.42);
+  ctx.strokeRect( w*0.02, -h*0.42, w*0.16, h*0.42);
+  // Loft window (round)
+  ctx.fillStyle = '#FFD040';
+  ctx.beginPath(); ctx.arc(0, -h*0.72, w*0.1, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = '#8B1A10'; ctx.lineWidth = 2;
+  ctx.stroke();
+  // Cross bar on window
+  ctx.strokeStyle = '#8B1A10'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(-w*0.1, -h*0.72); ctx.lineTo(w*0.1, -h*0.72); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, -h*0.82); ctx.lineTo(0, -h*0.62); ctx.stroke();
+  // White trim strips
+  ctx.strokeStyle = '#F5F0E8'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-w/2, -h*0.6); ctx.lineTo(w/2, -h*0.6); ctx.stroke();
   ctx.restore();
 }
 
-function _heroWindmill(ctx, x, y, size, t) {
-  const s = size / 50;
+// Windmill: x,y = base of tower (ground level)
+function _heroWindmill(ctx, x, y, height, t) {
+  const h = height;
   ctx.save(); ctx.translate(x, y);
-  // Tower
-  ctx.fillStyle = '#D4B896';
+  // Tower (tapered trapezoid)
+  const tw = h * 0.18, bw = h * 0.28;
+  ctx.fillStyle = '#D4C4A0';
   ctx.beginPath();
-  ctx.moveTo(-8*s, 0); ctx.lineTo(8*s, 0);
-  ctx.lineTo(5*s, -38*s); ctx.lineTo(-5*s, -38*s);
+  ctx.moveTo(-bw/2, 0);
+  ctx.lineTo(bw/2, 0);
+  ctx.lineTo(tw/2, -h);
+  ctx.lineTo(-tw/2, -h);
   ctx.closePath(); ctx.fill();
-  // Blades
-  ctx.save(); ctx.translate(0, -38*s); ctx.rotate(t * 1.5);
-  ctx.fillStyle = '#E8D4A0';
+  // Tower shading
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.beginPath();
+  ctx.moveTo(bw/2, 0);
+  ctx.lineTo(bw/2 + h*0.04, 0);
+  ctx.lineTo(tw/2 + h*0.02, -h);
+  ctx.lineTo(tw/2, -h);
+  ctx.closePath(); ctx.fill();
+  // Tower cap
+  ctx.fillStyle = '#B8A870';
+  ctx.beginPath();
+  ctx.ellipse(0, -h, tw/2 + 4, 6, 0, 0, Math.PI*2);
+  ctx.fill();
+  // Blades (rotate slowly: t is in seconds, 0.4 rad/s)
+  ctx.save(); ctx.translate(0, -h - 4); ctx.rotate(t * 0.4);
+  ctx.fillStyle = '#E8D8A8';
+  ctx.strokeStyle = '#C0A858'; ctx.lineWidth = 1;
   for (let i = 0; i < 4; i++) {
     ctx.save(); ctx.rotate(i * Math.PI / 2);
-    ctx.fillRect(-3*s, -18*s, 6*s, 18*s);
+    ctx.beginPath();
+    ctx.moveTo(-3, 0);
+    ctx.lineTo(-5, -h*0.42);
+    ctx.lineTo(5, -h*0.42);
+    ctx.lineTo(3, 0);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
     ctx.restore();
   }
-  ctx.fillStyle = '#C0A060';
-  ctx.beginPath(); ctx.arc(0, 0, 4*s, 0, Math.PI*2); ctx.fill();
+  // Hub
+  ctx.fillStyle = '#8B7040';
+  ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#F6D233';
+  ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI*2); ctx.fill();
   ctx.restore();
   ctx.restore();
 }
