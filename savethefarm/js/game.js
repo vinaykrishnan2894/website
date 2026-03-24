@@ -195,6 +195,7 @@ class Game {
   }
 
   _startGame() {
+    Audio.stopMusic(0.3); // stop any previous music immediately
     this._bgCache = null; // force background re-render
     this._buildGrid();
     this._calcLayout();
@@ -230,10 +231,20 @@ class Game {
     }
   }
 
+  _updateMusicIntensity() {
+    const elapsed = CONFIG.GAME_DURATION - this.timeLeft;
+    let level = 0;
+    for (let i = CONFIG.PHASES.length - 1; i >= 0; i--) {
+      if (elapsed >= CONFIG.PHASES[i].startTime) { level = i; break; }
+    }
+    Audio.setMusicIntensity(level);
+  }
+
   _endGame() {
     if (this.state === 'ENDED' || this.state === 'RESULTS') return;
     this.state = 'ENDED';
     this.spawner.stop();
+    Audio.stopMusic(0.8);
 
     const cropBonus = this.grid.reduce((s, t) => {
       if (!t.dead) s += CONFIG.SURVIVING_CROP_BONUS;
@@ -400,6 +411,7 @@ class Game {
           if (this.countdownValue <= 0) {
             this.state = 'PLAYING'; this.spawner.start();
             this.ui.showCountdown(0); Audio.playCountdown(true);
+            Audio.startMusic();
             this.countdownTimer = 0.9;
           } else {
             this.countdownTimer = 1.0;
@@ -413,6 +425,8 @@ class Game {
       case 'PLAYING':
         this.timeLeft -= dt;
         if (this.timeLeft <= 0) { this.timeLeft = 0; this._endGame(); }
+        // Update music intensity to match current phase
+        this._updateMusicIntensity();
         this.grid.forEach(t => t.update(dt));
         this.dog.update(dt);
         this.spawner.update(dt);

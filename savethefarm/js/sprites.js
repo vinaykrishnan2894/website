@@ -1,240 +1,334 @@
 // sprites.js — High-quality SVG sprite definitions and loader
 // All sprites are inline SVGs converted to data URIs and preloaded as Image objects.
-// Design language: FarmVille 3 chibi — big rounded shapes, warm colors, expressive faces.
+// Design language: FarmVille 3 chibi — path-based characters, expressive faces, warm palette.
 
 const SpriteData = {
 
   // ─────────────────────────────────────────────
-  // REX — Border Collie, front-facing chibi style
-  // Brown saddle, white blaze, red bandana, big round eyes, happy mouth
+  // REX — Golden Retriever chibi, path-based body
+  // Uniform golden coat, white chest, big expressive face, red bandana, no saddle
+  // All body/limbs drawn with bezier paths — no ellipses for shapes
   // ─────────────────────────────────────────────
-  rex: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 130" width="120" height="130">
+  rex: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 140" width="120" height="140">
   <defs>
-    <radialGradient id="bodyGrad" cx="40%" cy="35%" r="60%">
-      <stop offset="0%" stop-color="#D87030"/>
-      <stop offset="100%" stop-color="#A84818"/>
+    <radialGradient id="rfur" cx="38%" cy="32%" r="62%">
+      <stop offset="0%" stop-color="#E8A030"/>
+      <stop offset="100%" stop-color="#C07818"/>
     </radialGradient>
-    <radialGradient id="headGrad" cx="40%" cy="35%" r="55%">
-      <stop offset="0%" stop-color="#D87030"/>
-      <stop offset="100%" stop-color="#B05020"/>
+    <radialGradient id="rfurDark" cx="38%" cy="32%" r="62%">
+      <stop offset="0%" stop-color="#D09028"/>
+      <stop offset="100%" stop-color="#A86010"/>
     </radialGradient>
-    <radialGradient id="eyeGrad" cx="35%" cy="30%" r="60%">
-      <stop offset="0%" stop-color="#7B3810"/>
-      <stop offset="100%" stop-color="#3A1808"/>
+    <radialGradient id="reye" cx="30%" cy="28%" r="65%">
+      <stop offset="0%" stop-color="#6B3A10"/>
+      <stop offset="100%" stop-color="#2A1005"/>
     </radialGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#00000033"/>
-    </filter>
+    <filter id="rsh"><feDropShadow dx="0" dy="3" stdDeviation="3.5" flood-color="#00000030"/></filter>
   </defs>
 
   <!-- Ground shadow -->
-  <ellipse cx="60" cy="126" rx="38" ry="6" fill="#00000020"/>
+  <ellipse cx="60" cy="136" rx="36" ry="5" fill="#00000020"/>
 
-  <!-- TAIL (behind body) -->
-  <g transform="translate(96,68) rotate(-35)">
-    <ellipse cx="0" cy="-16" rx="5" ry="16" fill="#A04010"/>
-    <ellipse cx="1" cy="-32" rx="8" ry="11" fill="#EDE8DF"/>
-    <ellipse cx="0" cy="-34" rx="5" ry="7" fill="#FFF"/>
-  </g>
+  <!-- TAIL — sweeping path, not ellipse -->
+  <path d="M 92 72 C 108 58, 122 44, 118 30 C 114 18, 104 22, 100 30 C 96 40, 98 54, 88 66 Z"
+        fill="url(#rfur)" stroke="#A86010" stroke-width="1"/>
+  <!-- Tail tip fluff -->
+  <path d="M 100 30 C 104 20, 116 18, 118 28 C 115 22, 108 24, 104 32 Z"
+        fill="#F0D890"/>
 
-  <!-- BODY -->
-  <ellipse cx="62" cy="80" rx="32" ry="22" fill="url(#bodyGrad)" filter="url(#shadow)"/>
-  <!-- White belly -->
-  <ellipse cx="52" cy="88" rx="20" ry="15" fill="#F5F0E8"/>
-  <ellipse cx="48" cy="85" rx="13" ry="11" fill="#FFF"/>
-  <!-- White shoulder patch -->
-  <ellipse cx="38" cy="68" rx="12" ry="9" fill="#EDE8DF"/>
+  <!-- BACK LEGS — path-based haunches -->
+  <path d="M 78 88 C 82 80, 88 78, 90 86 C 92 94, 88 108, 84 116 C 80 118, 76 116, 76 110 C 76 102, 76 96, 78 88 Z"
+        fill="url(#rfurDark)"/>
+  <!-- Back right paw -->
+  <path d="M 76 110 C 74 118, 72 124, 78 126 C 84 128, 90 124, 88 118 C 86 114, 82 114, 78 118 Z"
+        fill="#E8A030" stroke="#A86010" stroke-width="1"/>
 
-  <!-- BACK LEGS -->
-  <ellipse cx="78" cy="102" rx="7" ry="13" fill="#A04010"/>
-  <ellipse cx="78" cy="114" rx="8" ry="5" fill="#EDE8DF"/>
-  <ellipse cx="44" cy="102" rx="7" ry="13" fill="#A04010"/>
-  <ellipse cx="44" cy="114" rx="8" ry="5" fill="#EDE8DF"/>
+  <path d="M 42 88 C 38 80, 32 78, 30 86 C 28 94, 32 108, 36 116 C 40 118, 44 116, 44 110 C 44 102, 44 96, 42 88 Z"
+        fill="url(#rfurDark)"/>
+  <!-- Back left paw -->
+  <path d="M 44 110 C 46 118, 48 124, 42 126 C 36 128, 30 124, 32 118 C 34 114, 38 114, 42 118 Z"
+        fill="#E8A030" stroke="#A86010" stroke-width="1"/>
 
-  <!-- NECK -->
-  <ellipse cx="34" cy="72" rx="14" ry="12" fill="#B84C14"/>
-  <!-- White chest ruff -->
-  <ellipse cx="28" cy="80" rx="12" ry="17" fill="#F5F0E8"/>
-  <ellipse cx="24" cy="77" rx="8" ry="13" fill="#FFF"/>
+  <!-- BODY — single flowing path, no ellipse -->
+  <path d="M 28 68 C 22 60, 22 48, 30 44 C 36 40, 44 42, 50 46
+           C 56 42, 68 38, 82 44 C 94 50, 98 64, 96 76
+           C 94 88, 86 94, 76 92 C 64 96, 48 96, 38 90
+           C 28 86, 24 78, 28 68 Z"
+        fill="url(#rfur)" filter="url(#rsh)"/>
 
-  <!-- FRONT LEGS -->
-  <ellipse cx="26" cy="102" rx="7" ry="13" fill="#A04010"/>
-  <ellipse cx="26" cy="114" rx="8" ry="5" fill="#EDE8DF"/>
-  <ellipse cx="40" cy="102" rx="7" ry="13" fill="#A04010"/>
-  <ellipse cx="40" cy="114" rx="8" ry="5" fill="#EDE8DF"/>
+  <!-- WHITE CHEST — path not ellipse -->
+  <path d="M 34 68 C 30 62, 32 54, 38 52 C 44 50, 50 54, 52 60
+           C 50 68, 46 74, 40 74 C 36 74, 34 72, 34 68 Z"
+        fill="#FFF8E8"/>
+  <path d="M 36 68 C 34 63, 36 57, 40 56 C 44 55, 48 58, 48 62
+           C 47 67, 44 70, 40 70 Z"
+        fill="#FFFFFF"/>
+
+  <!-- FRONT LEGS — path-based -->
+  <path d="M 38 84 C 34 84, 30 86, 28 96 C 26 106, 28 118, 32 122
+           C 36 124, 40 122, 42 116 C 44 108, 44 96, 42 88 C 42 86, 40 84, 38 84 Z"
+        fill="url(#rfur)"/>
+  <!-- Front left paw -->
+  <path d="M 28 118 C 26 124, 28 130, 34 130 C 40 130, 44 126, 42 120 Z"
+        fill="#E8A030" stroke="#A86010" stroke-width="1"/>
+
+  <path d="M 58 84 C 62 84, 66 86, 68 96 C 70 106, 68 118, 64 122
+           C 60 124, 56 122, 54 116 C 52 108, 52 96, 54 88 C 54 86, 56 84, 58 84 Z"
+        fill="url(#rfur)"/>
+  <!-- Front right paw -->
+  <path d="M 68 118 C 70 124, 68 130, 62 130 C 56 130, 52 126, 54 120 Z"
+        fill="#E8A030" stroke="#A86010" stroke-width="1"/>
+
+  <!-- NECK — path -->
+  <path d="M 28 62 C 24 54, 26 44, 34 40 C 42 36, 50 38, 52 44
+           C 48 42, 40 42, 36 48 C 32 54, 32 62, 34 68 Z"
+        fill="url(#rfur)"/>
 
   <!-- ── HEAD ── -->
-  <!-- Left floppy ear -->
-  <ellipse cx="12" cy="36" rx="10" ry="18" transform="rotate(-10 12 36)" fill="#8B3208"/>
-  <ellipse cx="13" cy="37" rx="6" ry="13" transform="rotate(-10 13 37)" fill="#C05018"/>
+  <!-- Left ear — floppy, path-based -->
+  <path d="M 14 38 C 8 28, 10 14, 18 10 C 24 8, 30 12, 32 20
+           C 30 14, 24 12, 20 16 C 16 22, 16 32, 20 40 Z"
+        fill="#C07818"/>
+  <path d="M 16 38 C 12 28, 14 16, 20 12 C 26 10, 30 14, 30 22
+           C 28 16, 24 14, 20 18 C 17 24, 18 34, 22 40 Z"
+        fill="#D08020"/>
 
-  <!-- HEAD base -->
-  <circle cx="42" cy="38" r="28" fill="url(#headGrad)" filter="url(#shadow)"/>
+  <!-- HEAD — rounded path, not circle -->
+  <path d="M 20 44 C 14 38, 12 28, 16 20 C 20 12, 30 8, 42 10
+           C 54 12, 64 18, 68 28 C 72 38, 68 50, 60 56
+           C 52 62, 38 62, 28 56 C 20 52, 18 48, 20 44 Z"
+        fill="url(#rfur)" filter="url(#rsh)"/>
 
-  <!-- Right semi-prick ear -->
-  <ellipse cx="64" cy="18" rx="10" ry="16" transform="rotate(15 64 18)" fill="#8B3208"/>
-  <ellipse cx="64" cy="17" rx="6" ry="11" transform="rotate(15 64 17)" fill="#C05018"/>
-  <!-- Folded white ear tip -->
-  <ellipse cx="67" cy="8" rx="7" ry="7" fill="#EDE8DF"/>
+  <!-- Right ear — prick ear -->
+  <path d="M 64 22 C 66 12, 72 6, 78 8 C 82 10, 82 18, 78 26
+           C 76 22, 74 16, 70 14 C 68 18, 66 24, 66 30 Z"
+        fill="#C07818"/>
+  <path d="M 66 24 C 68 16, 72 10, 76 12 C 78 16, 78 22, 74 28
+           C 72 22, 70 16, 68 16 C 68 20, 68 26, 68 30 Z"
+        fill="#D08020"/>
 
-  <!-- WIDE WHITE BLAZE — the Buddy trademark -->
-  <ellipse cx="44" cy="42" rx="16" ry="26" fill="#EDE8DF"/>
-  <ellipse cx="44" cy="42" rx="12" ry="21" fill="#FFF"/>
-  <!-- Brown eye patches on blaze -->
-  <ellipse cx="36" cy="30" rx="9" ry="6" transform="rotate(-10 36 30)" fill="#C05018"/>
-  <ellipse cx="52" cy="31" rx="7" ry="5.5" transform="rotate(10 52 31)" fill="#C05018"/>
+  <!-- SNOUT — path -->
+  <path d="M 50 38 C 44 36, 36 38, 34 44 C 32 50, 36 56, 44 58
+           C 52 60, 60 56, 62 50 C 64 44, 58 38, 50 38 Z"
+        fill="#C07818"/>
+  <path d="M 50 40 C 44 38, 38 40, 36 46 C 34 50, 38 54, 46 56
+           C 52 58, 58 54, 60 50 C 62 45, 57 40, 50 40 Z"
+        fill="#E8C890"/>
 
-  <!-- SNOUT -->
-  <ellipse cx="58" cy="44" rx="13" ry="10" fill="#C86030"/>
-  <ellipse cx="59" cy="45" rx="10" ry="8" fill="#EDE8DF"/>
+  <!-- NOSE — path, not ellipse -->
+  <path d="M 46 42 C 44 40, 44 36, 48 35 C 52 34, 56 36, 56 40
+           C 56 44, 52 46, 48 46 C 46 46, 46 44, 46 42 Z"
+        fill="#1A0800"/>
+  <!-- Nose highlight -->
+  <path d="M 47 37 C 47 35, 50 34, 52 36 C 50 35, 48 36, 47 38 Z"
+        fill="rgba(255,255,255,0.5)"/>
 
-  <!-- NOSE -->
-  <ellipse cx="66" cy="42" rx="6" ry="5" fill="#100800"/>
-  <ellipse cx="64" cy="40" rx="2.5" ry="1.8" fill="rgba(255,255,255,0.45)"/>
-
-  <!-- OPEN HAPPY MOUTH -->
-  <path d="M 52 52 Q 60 60 70 56" stroke="#AA1818" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-  <!-- Tongue -->
-  <ellipse cx="64" cy="59" rx="6" ry="8" fill="#FF7070"/>
-  <line x1="64" y1="52" x2="64" y2="66" stroke="#E04848" stroke-width="1.5"/>
+  <!-- OPEN MOUTH -->
+  <path d="M 36 52 C 40 58, 52 60, 58 54" stroke="#8B3010" stroke-width="2.2" fill="none" stroke-linecap="round"/>
   <!-- Teeth -->
-  <rect x="52" y="52" width="18" height="5" rx="2" fill="#FFF"/>
+  <path d="M 38 52 L 38 56 L 44 56 L 44 52 Z" fill="#FFFFFF" rx="1"/>
+  <path d="M 44 52 L 44 56 L 50 56 L 50 52 Z" fill="#FFFFFF" rx="1"/>
+  <!-- Tongue -->
+  <path d="M 40 56 C 40 64, 46 66, 50 62 C 52 58, 50 56, 48 56 Z"
+        fill="#FF7878"/>
+  <path d="M 44 56 L 44 64" stroke="#E05050" stroke-width="1.5"/>
 
-  <!-- EYES -->
-  <!-- White sclera -->
-  <ellipse cx="34" cy="26" rx="9" ry="8" fill="#FFF8F0"/>
-  <ellipse cx="50" cy="27" rx="8" ry="7.5" fill="#FFF8F0"/>
-  <!-- Iris warm brown -->
-  <circle cx="35" cy="27" r="6.5" fill="url(#eyeGrad)"/>
-  <circle cx="51" cy="27" r="6" fill="url(#eyeGrad)"/>
-  <!-- Pupil -->
-  <circle cx="36" cy="27" r="3.8" fill="#080400"/>
-  <circle cx="52" cy="27" r="3.5" fill="#080400"/>
-  <!-- Shine -->
-  <circle cx="37.5" cy="25" r="2.2" fill="rgba(255,255,255,0.9)"/>
-  <circle cx="53.5" cy="25" r="2" fill="rgba(255,255,255,0.9)"/>
-  <!-- Eyelid arc -->
-  <path d="M 28 24 Q 35 19 42 24" stroke="#4A1804" stroke-width="2" fill="none"/>
-  <path d="M 44 25 Q 50 20 57 25" stroke="#4A1804" stroke-width="2" fill="none"/>
-  <!-- Eyebrow spots -->
-  <ellipse cx="35" cy="19" rx="5" ry="3" fill="#8B3010"/>
-  <ellipse cx="51" cy="20" rx="4.5" ry="2.8" fill="#8B3010"/>
+  <!-- EYES — sclera + iris + pupil + shine, path-based -->
+  <!-- Left eye -->
+  <path d="M 22 28 C 22 22, 28 18, 34 20 C 38 22, 40 26, 38 30
+           C 36 34, 30 36, 26 34 C 22 32, 22 30, 22 28 Z"
+        fill="#FFFAF2"/>
+  <path d="M 25 28 C 25 24, 29 21, 33 22 C 37 23, 38 27, 36 30
+           C 34 33, 28 34, 26 32 C 24 30, 24 29, 25 28 Z"
+        fill="url(#reye)"/>
+  <path d="M 27 27 C 27 25, 30 23, 33 24 C 35 25, 36 28, 34 30
+           C 32 32, 28 32, 27 30 Z"
+        fill="#1A0800"/>
+  <path d="M 29 24 C 30 23, 32 23, 33 25 C 32 24, 30 24, 29 25 Z"
+        fill="rgba(255,255,255,0.95)"/>
+  <!-- Left eyelid arc -->
+  <path d="M 22 27 C 26 22, 34 22, 38 27" stroke="#5A2808" stroke-width="1.8" fill="none"/>
 
-  <!-- RED BANDANA / COLLAR -->
-  <path d="M 22 62 Q 42 70 60 62" stroke="#CC1818" stroke-width="5" stroke-linecap="round" fill="none"/>
-  <!-- Bandana knot + tails -->
-  <circle cx="22" cy="62" r="5" fill="#DD2020"/>
-  <path d="M 18 62 L 12 72 M 18 62 L 14 58" stroke="#DD2020" stroke-width="3" stroke-linecap="round"/>
+  <!-- Right eye -->
+  <path d="M 50 26 C 50 20, 56 16, 62 18 C 66 20, 68 24, 66 28
+           C 64 32, 58 34, 54 32 C 50 30, 50 28, 50 26 Z"
+        fill="#FFFAF2"/>
+  <path d="M 53 26 C 53 22, 57 19, 61 20 C 65 21, 66 25, 64 28
+           C 62 31, 56 32, 54 30 C 52 28, 52 27, 53 26 Z"
+        fill="url(#reye)"/>
+  <path d="M 55 25 C 55 23, 58 21, 61 22 C 63 23, 64 26, 62 28
+           C 60 30, 56 30, 55 28 Z"
+        fill="#1A0800"/>
+  <path d="M 57 22 C 58 21, 60 21, 61 23 C 60 22, 58 22, 57 23 Z"
+        fill="rgba(255,255,255,0.95)"/>
+  <!-- Right eyelid -->
+  <path d="M 50 25 C 54 20, 62 20, 66 25" stroke="#5A2808" stroke-width="1.8" fill="none"/>
+
+  <!-- Eyebrow spots (expressive) -->
+  <path d="M 24 20 C 26 17, 32 17, 34 20 C 30 18, 26 18, 24 20 Z" fill="#A06010"/>
+  <path d="M 52 18 C 54 15, 60 15, 62 18 C 58 16, 54 16, 52 18 Z" fill="#A06010"/>
+
+  <!-- RED BANDANA — path, not stroke arc -->
+  <path d="M 20 60 C 28 66, 42 70, 58 66 C 52 70, 42 74, 32 72 Z"
+        fill="#CC1818"/>
+  <path d="M 20 60 C 28 64, 42 68, 58 66 C 42 72, 28 70, 20 64 Z"
+        fill="#DD2424"/>
+  <!-- Bandana knot -->
+  <path d="M 20 60 C 18 56, 16 54, 14 58 C 12 62, 14 68, 18 66 C 16 64, 16 60, 18 60 Z"
+        fill="#CC1818"/>
+  <path d="M 18 66 L 12 76 M 18 64 L 10 60" stroke="#CC1818" stroke-width="2.5" stroke-linecap="round"/>
   <!-- Gold tag -->
-  <circle cx="42" cy="68" r="5" fill="#F6D233" stroke="#C88800" stroke-width="1.5"/>
-  <text x="42" y="72" text-anchor="middle" font-size="6" font-weight="bold" fill="#7A5010">R</text>
+  <path d="M 40 68 C 38 66, 38 62, 40 60 C 42 58, 46 58, 48 60
+           C 50 62, 50 66, 48 68 C 46 70, 42 70, 40 68 Z"
+        fill="#F6D233" stroke="#C88800" stroke-width="1.5"/>
+  <text x="44" y="66" text-anchor="middle" font-size="7" font-weight="bold" fill="#7A5010" font-family="sans-serif">R</text>
 </svg>`,
 
   // ─────────────────────────────────────────────
-  // REX RUNNING — elongated pose, legs extended
+  // REX RUNNING — gallop pose, all paths
   // ─────────────────────────────────────────────
-  rexRun: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 110" width="140" height="110">
+  rexRun: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 120" width="160" height="120">
   <defs>
-    <radialGradient id="bGr" cx="40%" cy="35%" r="60%">
-      <stop offset="0%" stop-color="#D87030"/><stop offset="100%" stop-color="#A84818"/>
+    <radialGradient id="rrfur" cx="38%" cy="32%" r="62%">
+      <stop offset="0%" stop-color="#E8A030"/>
+      <stop offset="100%" stop-color="#C07818"/>
     </radialGradient>
-    <radialGradient id="hGr" cx="40%" cy="35%" r="55%">
-      <stop offset="0%" stop-color="#D87030"/><stop offset="100%" stop-color="#B05020"/>
+    <radialGradient id="rreye" cx="30%" cy="28%" r="65%">
+      <stop offset="0%" stop-color="#6B3A10"/>
+      <stop offset="100%" stop-color="#2A1005"/>
     </radialGradient>
-    <radialGradient id="eGr" cx="35%" cy="30%" r="60%">
-      <stop offset="0%" stop-color="#7B3810"/><stop offset="100%" stop-color="#3A1808"/>
-    </radialGradient>
+    <filter id="rrsh"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000028"/></filter>
   </defs>
 
-  <!-- Shadow (elongated when running) -->
-  <ellipse cx="70" cy="106" rx="48" ry="5" fill="#00000018"/>
+  <!-- Elongated shadow when running -->
+  <ellipse cx="80" cy="116" rx="56" ry="5" fill="#00000018"/>
 
-  <!-- TAIL (raised high, wagging) -->
-  <g transform="translate(118,52) rotate(-60)">
-    <ellipse cx="0" cy="-14" rx="5" ry="14" fill="#A04010"/>
-    <ellipse cx="2" cy="-27" rx="9" ry="12" fill="#EDE8DF"/>
-    <ellipse cx="1" cy="-29" rx="5.5" ry="7.5" fill="#FFF"/>
-  </g>
+  <!-- TAIL — raised high, wagging path -->
+  <path d="M 124 52 C 140 36, 156 24, 152 12 C 148 2, 138 4, 134 14
+           C 130 24, 132 38, 120 50 Z"
+        fill="#E8A030" stroke="#A86010" stroke-width="1"/>
+  <path d="M 134 14 C 138 4, 150 2, 152 12 C 148 6, 140 8, 136 18 Z"
+        fill="#F0D890"/>
 
-  <!-- BACK LEGS (extended back) -->
-  <ellipse cx="100" cy="84" rx="6" ry="18" transform="rotate(25 100 84)" fill="#A04010"/>
-  <ellipse cx="108" cy="97" rx="9" ry="5" fill="#EDE8DF"/>
-  <ellipse cx="84" cy="84" rx="6" ry="16" transform="rotate(15 84 84)" fill="#904010"/>
-  <ellipse cx="90" cy="96" rx="8" ry="4.5" fill="#EDE8DF"/>
+  <!-- BACK LEGS extended rearward -->
+  <path d="M 100 68 C 108 62, 118 60, 122 72 C 126 82, 122 98, 116 104
+           C 110 108, 104 106, 102 98 C 100 88, 100 76, 100 68 Z"
+        fill="#C07818"/>
+  <path d="M 116 104 C 112 110, 108 116, 114 118 C 120 120, 128 116, 124 108 Z"
+        fill="#E8A030" stroke="#A86010" stroke-width="1"/>
 
-  <!-- BODY (elongated) -->
-  <ellipse cx="74" cy="66" rx="38" ry="19" fill="url(#bGr)"/>
-  <!-- White belly -->
-  <ellipse cx="62" cy="74" rx="26" ry="13" fill="#F5F0E8"/>
-  <ellipse cx="55" cy="71" rx="17" ry="10" fill="#FFF"/>
+  <path d="M 80 72 C 88 66, 96 64, 98 76 C 100 86, 96 100, 90 106
+           C 84 110, 78 108, 76 100 C 74 90, 76 80, 80 72 Z"
+        fill="#C07818"/>
+  <path d="M 90 106 C 86 112, 82 118, 88 118 C 94 120, 100 116, 96 108 Z"
+        fill="#E8A030" stroke="#A86010" stroke-width="1"/>
 
-  <!-- NECK -->
-  <ellipse cx="38" cy="60" rx="14" ry="11" fill="#B84C14"/>
-  <!-- White chest ruff -->
-  <ellipse cx="30" cy="67" rx="13" ry="16" fill="#F5F0E8"/>
-  <ellipse cx="26" cy="65" rx="8.5" ry="12" fill="#FFF"/>
+  <!-- BODY elongated in gallop -->
+  <path d="M 30 52 C 24 42, 26 30, 36 26 C 46 22, 60 24, 72 28
+           C 84 24, 100 22, 114 28 C 128 34, 134 48, 130 62
+           C 126 74, 112 80, 96 78 C 80 82, 60 80, 46 74
+           C 32 68, 26 62, 30 52 Z"
+        fill="url(#rrfur)" filter="url(#rrsh)"/>
 
-  <!-- FRONT LEGS (extended forward) -->
-  <ellipse cx="22" cy="82" rx="6" ry="18" transform="rotate(-25 22 82)" fill="#A04010"/>
-  <ellipse cx="14" cy="93" rx="9" ry="5" fill="#EDE8DF"/>
-  <ellipse cx="36" cy="84" rx="6" ry="16" transform="rotate(-15 36 84)" fill="#904010"/>
-  <ellipse cx="30" cy="94" rx="8" ry="4.5" fill="#EDE8DF"/>
+  <!-- White chest (swept back in run) -->
+  <path d="M 36 52 C 32 44, 36 36, 44 34 C 52 32, 58 38, 58 46
+           C 56 54, 50 60, 44 58 C 38 56, 36 54, 36 52 Z"
+        fill="#FFF8E8"/>
 
-  <!-- DUST PUFFS -->
-  <circle cx="120" cy="100" r="5" fill="#D4A84A" opacity="0.4"/>
-  <circle cx="130" cy="95" r="3.5" fill="#D4A84A" opacity="0.25"/>
+  <!-- FRONT LEGS extended forward -->
+  <path d="M 42 66 C 34 62, 24 56, 16 64 C 8 72, 10 88, 16 96
+           C 22 102, 30 100, 34 92 C 38 84, 38 74, 42 68 Z"
+        fill="#C07818"/>
+  <path d="M 10 92 C 6 98, 8 106, 14 106 C 20 108, 26 104, 22 96 Z"
+        fill="#E8A030" stroke="#A86010" stroke-width="1"/>
+
+  <path d="M 56 70 C 48 66, 40 62, 34 70 C 28 78, 30 92, 36 98
+           C 42 102, 50 100, 52 92 C 54 84, 54 76, 56 72 Z"
+        fill="#C07818"/>
+  <path d="M 30 94 C 26 100, 28 108, 34 108 C 40 108, 46 104, 42 96 Z"
+        fill="#E8A030" stroke="#A86010" stroke-width="1"/>
+
+  <!-- Dust puffs -->
+  <path d="M 140 106 C 138 100, 144 96, 148 100 C 150 104, 148 110, 144 110 Z"
+        fill="#D4A84A" opacity="0.45"/>
+  <path d="M 150 100 C 148 95, 154 92, 157 97 C 158 100, 156 104, 153 104 Z"
+        fill="#D4A84A" opacity="0.28"/>
+
+  <!-- ── HEAD ── -->
+  <!-- Left ear swept back -->
+  <path d="M 14 30 C 8 20, 10 8, 18 6 C 24 4, 30 10, 30 20
+           C 28 12, 22 10, 18 14 C 14 20, 16 30, 20 38 Z"
+        fill="#C07818"/>
 
   <!-- HEAD -->
-  <!-- Left floppy ear (swept back when running) -->
-  <ellipse cx="16" cy="30" rx="9" ry="17" transform="rotate(20 16 30)" fill="#8B3208"/>
-  <ellipse cx="17" cy="31" rx="5.5" ry="12" transform="rotate(20 17 31)" fill="#C05018"/>
+  <path d="M 18 44 C 12 36, 12 24, 18 16 C 24 8, 36 4, 48 6
+           C 60 8, 70 16, 72 26 C 74 36, 68 48, 58 52
+           C 46 58, 28 56, 20 48 Z"
+        fill="url(#rrfur)" filter="url(#rrsh)"/>
 
-  <!-- Head -->
-  <circle cx="38" cy="34" r="27" fill="url(#hGr)"/>
+  <!-- Right ear (forward, alert) -->
+  <path d="M 66 18 C 68 8, 74 2, 80 4 C 84 6, 84 14, 80 22
+           C 78 16, 74 10, 70 10 C 68 14, 68 22, 70 28 Z"
+        fill="#C07818"/>
 
-  <!-- Right ear (swept back) -->
-  <ellipse cx="56" cy="14" rx="9" ry="15" transform="rotate(30 56 14)" fill="#8B3208"/>
-  <ellipse cx="57" cy="13" rx="5.5" ry="10" transform="rotate(30 57 13)" fill="#C05018"/>
-  <ellipse cx="60" cy="6" rx="6" ry="6" fill="#EDE8DF"/>
-
-  <!-- White blaze -->
-  <ellipse cx="40" cy="38" rx="15" ry="24" fill="#EDE8DF"/>
-  <ellipse cx="40" cy="38" rx="11" ry="19" fill="#FFF"/>
-  <!-- Brown eye patches -->
-  <ellipse cx="33" cy="27" rx="8.5" ry="5.5" transform="rotate(-8 33 27)" fill="#C05018"/>
-  <ellipse cx="47" cy="28" rx="7" ry="5" transform="rotate(8 47 28)" fill="#C05018"/>
-
-  <!-- Snout -->
-  <ellipse cx="54" cy="40" rx="12" ry="9" fill="#C86030"/>
-  <ellipse cx="55" cy="41" rx="9.5" ry="7.5" fill="#EDE8DF"/>
+  <!-- Snout (pushed forward in run) -->
+  <path d="M 52 36 C 44 34, 36 36, 34 42 C 32 48, 36 54, 44 56
+           C 52 58, 62 54, 64 48 C 66 42, 60 36, 52 36 Z"
+        fill="#C07818"/>
+  <path d="M 52 38 C 46 36, 40 38, 38 44 C 36 48, 40 52, 48 54
+           C 54 56, 62 52, 62 48 C 62 43, 58 38, 52 38 Z"
+        fill="#E8C890"/>
 
   <!-- Nose -->
-  <ellipse cx="62" cy="38" rx="5.5" ry="4.5" fill="#100800"/>
-  <ellipse cx="60.5" cy="36.5" rx="2" ry="1.5" fill="rgba(255,255,255,0.45)"/>
+  <path d="M 48 40 C 46 38, 46 34, 50 33 C 54 32, 58 34, 58 38
+           C 58 42, 54 44, 50 44 C 48 44, 48 42, 48 40 Z"
+        fill="#1A0800"/>
+  <path d="M 49 34 C 50 33, 53 33, 54 35 C 52 34, 50 34, 49 36 Z"
+        fill="rgba(255,255,255,0.5)"/>
 
-  <!-- Open mouth (tongue out, panting) -->
-  <path d="M 48 48 Q 56 56 66 52" stroke="#AA1818" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-  <ellipse cx="60" cy="55" rx="5.5" ry="7.5" fill="#FF7070"/>
-  <line x1="60" y1="49" x2="60" y2="62" stroke="#E04848" stroke-width="1.5"/>
-  <rect x="48" y="48" width="16" height="4.5" rx="2" fill="#FFF"/>
+  <!-- Mouth panting open wide -->
+  <path d="M 38 50 C 44 58, 56 60, 64 54" stroke="#8B3010" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <path d="M 40 50 L 40 55 L 46 55 L 46 50 Z" fill="#FFFFFF"/>
+  <path d="M 46 50 L 46 55 L 52 55 L 52 50 Z" fill="#FFFFFF"/>
+  <path d="M 42 55 C 42 64, 48 68, 54 64 C 58 60, 56 56, 52 56 Z"
+        fill="#FF7878"/>
+  <path d="M 47 55 L 47 64" stroke="#E05050" stroke-width="1.5"/>
 
-  <!-- Eyes (excited, wide) -->
-  <ellipse cx="30" cy="23" rx="8.5" ry="8" fill="#FFF8F0"/>
-  <ellipse cx="45" cy="24" rx="7.5" ry="7" fill="#FFF8F0"/>
-  <circle cx="31" cy="24" r="6" fill="url(#eGr)"/>
-  <circle cx="46" cy="24" r="5.5" fill="url(#eGr)"/>
-  <circle cx="32" cy="24" r="3.5" fill="#080400"/>
-  <circle cx="47" cy="24" r="3.2" fill="#080400"/>
-  <circle cx="33.5" cy="22" r="2" fill="rgba(255,255,255,0.9)"/>
-  <circle cx="48.5" cy="22" r="1.8" fill="rgba(255,255,255,0.9)"/>
-  <path d="M 24 21 Q 31 16 38 21" stroke="#4A1804" stroke-width="1.8" fill="none"/>
-  <path d="M 39 22 Q 45 17 52 22" stroke="#4A1804" stroke-width="1.8" fill="none"/>
+  <!-- Eyes (wide excited run) -->
+  <path d="M 20 24 C 20 18, 26 14, 32 16 C 36 18, 38 22, 36 26
+           C 34 30, 28 32, 24 30 C 20 28, 20 26, 20 24 Z"
+        fill="#FFFAF2"/>
+  <path d="M 23 24 C 23 20, 27 17, 31 18 C 35 19, 36 23, 34 26
+           C 32 29, 26 30, 24 28 C 22 26, 22 25, 23 24 Z"
+        fill="url(#rreye)"/>
+  <path d="M 25 23 C 25 21, 28 19, 31 20 C 33 21, 34 24, 32 26 C 30 28, 26 28, 25 26 Z"
+        fill="#1A0800"/>
+  <path d="M 27 20 C 28 19, 30 19, 31 21 C 30 20, 28 20, 27 21 Z"
+        fill="rgba(255,255,255,0.95)"/>
+  <path d="M 20 23 C 24 18, 32 18, 36 23" stroke="#5A2808" stroke-width="1.8" fill="none"/>
 
-  <!-- Bandana -->
-  <path d="M 18 57 Q 36 65 54 57" stroke="#CC1818" stroke-width="4.5" stroke-linecap="round" fill="none"/>
-  <circle cx="18" cy="57" r="4.5" fill="#DD2020"/>
-  <path d="M 14 57 L 8 67 M 14 57 L 10 53" stroke="#DD2020" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M 46 22 C 46 16, 52 12, 58 14 C 62 16, 64 20, 62 24
+           C 60 28, 54 30, 50 28 C 46 26, 46 24, 46 22 Z"
+        fill="#FFFAF2"/>
+  <path d="M 49 22 C 49 18, 53 15, 57 16 C 61 17, 62 21, 60 24
+           C 58 27, 52 28, 50 26 C 48 24, 48 23, 49 22 Z"
+        fill="url(#rreye)"/>
+  <path d="M 51 21 C 51 19, 54 17, 57 18 C 59 19, 60 22, 58 24 C 56 26, 52 26, 51 24 Z"
+        fill="#1A0800"/>
+  <path d="M 53 18 C 54 17, 56 17, 57 19 C 56 18, 54 18, 53 19 Z"
+        fill="rgba(255,255,255,0.95)"/>
+  <path d="M 46 21 C 50 16, 58 16, 62 21" stroke="#5A2808" stroke-width="1.8" fill="none"/>
+
+  <!-- Bandana swept back -->
+  <path d="M 16 52 C 24 58, 40 62, 60 58 C 54 64, 38 66, 26 62 Z"
+        fill="#CC1818"/>
+  <path d="M 16 52 C 24 56, 40 60, 60 58 C 40 64, 24 62, 16 58 Z"
+        fill="#DD2424"/>
+  <path d="M 16 52 C 14 48, 12 46, 10 50 C 8 54, 10 60, 14 58 C 12 56, 12 52, 14 52 Z"
+        fill="#CC1818"/>
+  <path d="M 14 58 L 8 70 M 14 56 L 6 52" stroke="#CC1818" stroke-width="2.5" stroke-linecap="round"/>
 </svg>`,
+
 
   // ─────────────────────────────────────────────
   // CROW — Glossy black bird, menacing on tile
