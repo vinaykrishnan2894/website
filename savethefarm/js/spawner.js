@@ -1,25 +1,27 @@
-// spawner.js — Pest spawning logic with progressive difficulty
+// spawner.js — Pest spawning with progressive difficulty
+// Fixes: B5 (elapsedTime leaks past stop), B8 (rabbit hops between tiles), G5 (grace period)
 
 class Spawner {
   constructor(grid) {
-    this.grid = grid;         // array of CropTile
-    this.activePests = [];    // current Pest objects
-    this.spawnTimer = 0;
+    this.grid       = grid;
+    this.activePests = [];
+    this.spawnTimer  = 0;
     this.elapsedTime = 0;
-    this.enabled = false;
-    this._onPestDamage = null; // callback(tileIndex)
-    this._onPestChased = null; // callback(pest)
+    this.enabled     = false;
+    this._onPestDamage = null;
+    this._onPestChased = null;
   }
 
   start() {
-    this.enabled = true;
+    this.enabled     = true;
     this.elapsedTime = 0;
-    this.spawnTimer = 0;
+    this.spawnTimer  = CONFIG.SPAWN_GRACE_PERIOD; // G5: grace before first spawn
     this.activePests = [];
   }
 
   stop() {
     this.enabled = false;
+    // B5 fix: do NOT keep ticking elapsedTime after stop
   }
 
   onPestDamage(cb) { this._onPestDamage = cb; }
@@ -36,25 +38,24 @@ class Spawner {
 
   _pickRandomTile(excludeIndices = []) {
     const available = this.grid
-      .map((t, i) => i)
+      .map((_, i) => i)
       .filter(i => !this.grid[i].dead && !excludeIndices.includes(i));
     if (available.length === 0) return null;
     return available[Math.floor(Math.random() * available.length)];
   }
 
   _tilesOccupied() {
-    return this.activePests
-      .filter(p => p.alive)
-      .map(p => p.tileIndex)
-      .concat(
-        this.activePests
-          .filter(p => p.alive && p.secondaryTileIndex !== null)
-          .map(p => p.secondaryTileIndex)
-      );
+    const out = [];
+    for (const p of this.activePests) {
+      if (!p.alive) continue;
+      out.push(p.tileIndex);
+      if (p.secondaryTileIndex !== null) out.push(p.secondaryTileIndex);
+    }
+    return out;
   }
 
   _spawnPest(phase) {
-    const occupied = this._tilesOccupied();
+    const occupied  = this._tilesOccupied();
     const tileIndex = this._pickRandomTile(occupied);
     if (tileIndex === null) return;
 
@@ -62,46 +63,47 @@ class Spawner {
     const tile = this.grid[tileIndex];
     const pest = new Pest(type, tileIndex, tile.px, tile.py, tile.tileSize);
 
-    // Cricket swarm: pick a second adjacent tile
+    // Cricket: pick adjacent secondary tile
     if (type === 'cricket') {
       const col = tileIndex % CONFIG.GRID_COLS;
       const row = Math.floor(tileIndex / CONFIG.GRID_COLS);
       const neighbors = [];
       if (col + 1 < CONFIG.GRID_COLS) neighbors.push(tileIndex + 1);
-      if (col - 1 >= 0) neighbors.push(tileIndex - 1);
+      if (col - 1 >= 0)               neighbors.push(tileIndex - 1);
       if (row + 1 < CONFIG.GRID_ROWS) neighbors.push(tileIndex + CONFIG.GRID_COLS);
-      if (row - 1 >= 0) neighbors.push(tileIndex - CONFIG.GRID_COLS);
-      const validNeighbors = neighbors.filter(n => !this.grid[n].dead && !occupied.includes(n));
-      if (validNeighbors.length > 0) {
-        pest.secondaryTileIndex = validNeighbors[Math.floor(Math.random() * validNeighbors.length)];
-        const secondTile = this.grid[pest.secondaryTileIndex];
-        // Position cricket swarm between the two tiles
-        pest.x = (tile.px + secondTile.px + tile.tileSize) / 2;
-        pest.y = (tile.py + secondTile.py + tile.tileSize) / 2;
+      if (row - 1 >= 0)               neighbors.push(tileIndex - CONFIG.GRID_COLS);
+      const valid = neighbors.filter(n => !this.grid[n].dead && !occupied.includes(n));
+      if (valid.length > 0) {
+        pest.secondaryTileIndex = valid[Math.floor(Math.random() * valid.length)];
+        const t2 = this.grid[pest.secondaryTileIndex];
+        pest.x = (tile.px + t2.px + tile.tileSize) / 2;
+        pest.y = (tile.py + t2.py + tile.tileSize) / 2;
       }
     }
 
-    // Rabbit: set up hop path
+    // G8 fix: Rabbit gets a hop PATH (list of tile indices to visit)
     if (type === 'rabbit') {
-      pest.hopTimer = CONFIG.RABBIT_HOP_INTERVAL;
-      pest.hopCount = 0;
-      pest.settled = false;
-      // Start from a random edge position
-      pest.x = tile.px + tile.tileSize / 2 + (Math.random() - 0.5) * 20;
+      const hopPath = _buildRabbitPath(tileIndex, this.grid, occupied);
+      pest.hopPath      = hopPath;  // array of tile indices
+      pest.hopPathIdx   = 0;        // which hop we're on
+      pest.hopTimer     = CONFIG.RABBIT_HOP_INTERVAL;
+      pest.settled      = false;
+      // Start at first tile
+      pest.x = tile.px + tile.tileSize / 2;
       pest.y = tile.py + tile.tileSize / 2;
     }
 
-    // Crow fly-in: start from above
+    // Crow fly-in from above
     if (type === 'crow') {
-      pest.flyInY = tile.py - 100;
+      pest.flyInY = tile.py - 120;
       pest.startY = tile.py + tile.tileSize / 2;
-      pest.y = pest.flyInY;
+      pest.y      = pest.flyInY;
     }
 
     this.activePests.push(pest);
   }
 
-  // Called when dog arrives at a pest's tile
+  // B3 fix: dog goes to the TAPPED tile, but we match pest by either tile
   chasePest(tileIndex) {
     const pest = this.activePests.find(p =>
       p.alive && (p.tileIndex === tileIndex || p.secondaryTileIndex === tileIndex)
@@ -112,7 +114,6 @@ class Spawner {
     return pest;
   }
 
-  // Returns the alive pest at this tile (if any)
   getPestAtTile(tileIndex) {
     return this.activePests.find(p =>
       p.alive && (p.tileIndex === tileIndex || p.secondaryTileIndex === tileIndex)
@@ -120,28 +121,58 @@ class Spawner {
   }
 
   update(dt) {
-    this.elapsedTime += dt;
+    // B5 fix: only advance time when enabled
+    if (this.enabled) {
+      this.elapsedTime += dt;
+    }
 
-    // Update all pests
-    this.activePests.forEach(p => p.update(dt));
+    // Update all pests (always, so flee animations complete)
+    this.activePests.forEach(p => p.update(dt, this.grid));
 
-    // Check for expired pests (timer ran out)
+    // G8: advance rabbit hops between tiles
     this.activePests.forEach(p => {
-      if (p.alive && p.timer <= 0) {
-        // Pest eats the crop
-        p.alive = false;
-        p.fleeing = true; // play flee anim anyway (slinks away)
-        p.fleeTime = p.fleeMaxTime;
-        const tile = this.grid[p.tileIndex];
-        if (tile) tile.takeDamage();
-        if (p.secondaryTileIndex !== null) {
-          const tile2 = this.grid[p.secondaryTileIndex];
-          if (tile2) tile2.takeDamage();
+      if (p.type !== 'rabbit' || p.settled || !p.alive) return;
+      p.hopTimer -= dt;
+      if (p.hopTimer <= 0) {
+        p.hopPathIdx++;
+        if (p.hopPathIdx >= p.hopPath.length) {
+          // Reached final tile — settle here
+          p.settled    = true;
+          p.tileIndex  = p.hopPath[p.hopPath.length - 1];
+          p.timer      = CONFIG.PEST_TIMERS.rabbit;
+          p.maxTimer   = p.timer;
+          const ft = this.grid[p.tileIndex];
+          p.x = ft.px + ft.tileSize / 2;
+          p.y = ft.py + ft.tileSize / 2;
+        } else {
+          // Hop to next tile
+          const nextIdx = p.hopPath[p.hopPathIdx];
+          p.tileIndex   = nextIdx;
+          const nt      = this.grid[nextIdx];
+          p.x           = nt.px + nt.tileSize / 2;
+          p.y           = nt.py + nt.tileSize / 2;
+          p.isHopping   = true;
+          p.hopTimer    = CONFIG.RABBIT_HOP_INTERVAL;
+          setTimeout(() => { p.isHopping = false; }, CONFIG.RABBIT_HOP_INTERVAL * 400);
         }
-        if (this._onPestDamage) {
-          this._onPestDamage(p.tileIndex);
-          if (p.secondaryTileIndex !== null) this._onPestDamage(p.secondaryTileIndex);
-        }
+      }
+    });
+
+    // Check expired pests
+    this.activePests.forEach(p => {
+      if (!p.alive || p.timer > 0) return;
+      p.alive    = false;
+      p.fleeing  = true;
+      p.fleeTime = p.fleeMaxTime;
+      const tile = this.grid[p.tileIndex];
+      if (tile) tile.takeDamage();
+      if (p.secondaryTileIndex !== null) {
+        const t2 = this.grid[p.secondaryTileIndex];
+        if (t2) t2.takeDamage();
+      }
+      if (this._onPestDamage) {
+        this._onPestDamage(p.tileIndex);
+        if (p.secondaryTileIndex !== null) this._onPestDamage(p.secondaryTileIndex);
       }
     });
 
@@ -153,22 +184,38 @@ class Spawner {
     // Spawn new pests
     const phase = this._currentPhase();
     this.spawnTimer -= dt;
-
     if (this.spawnTimer <= 0) {
       this.spawnTimer = phase.interval;
-      const currentCount = this.activePests.filter(p => p.alive).length;
-      const toSpawn = Math.min(
-        phase.maxSimul - currentCount,
-        // In phases 3+, sometimes spawn 2
-        phase.maxSimul >= 2 && Math.random() < 0.4 ? 2 : 1
-      );
-      for (let i = 0; i < toSpawn; i++) {
-        this._spawnPest(phase);
-      }
+      const alive = this.activePests.filter(p => p.alive).length;
+      const want  = phase.maxSimul >= 2 && Math.random() < 0.4 ? 2 : 1;
+      const count = Math.min(phase.maxSimul - alive, want);
+      for (let i = 0; i < count; i++) this._spawnPest(phase);
     }
   }
 
   draw(ctx) {
     this.activePests.forEach(p => p.draw(ctx));
   }
+}
+
+// G8 helper: build a short random path of 2-3 adjacent tile indices for rabbit
+function _buildRabbitPath(startIdx, grid, occupied) {
+  const path   = [startIdx];
+  const maxLen = Math.floor(Math.random() * (CONFIG.RABBIT_HOP_COUNT.max - CONFIG.RABBIT_HOP_COUNT.min + 1))
+               + CONFIG.RABBIT_HOP_COUNT.min;
+  let cur = startIdx;
+  for (let h = 0; h < maxLen; h++) {
+    const col  = cur % CONFIG.GRID_COLS;
+    const row  = Math.floor(cur / CONFIG.GRID_COLS);
+    const candidates = [];
+    if (col + 1 < CONFIG.GRID_COLS) candidates.push(cur + 1);
+    if (col - 1 >= 0)               candidates.push(cur - 1);
+    if (row + 1 < CONFIG.GRID_ROWS) candidates.push(cur + CONFIG.GRID_COLS);
+    if (row - 1 >= 0)               candidates.push(cur - CONFIG.GRID_COLS);
+    const valid = candidates.filter(n => !grid[n].dead && !path.includes(n) && !occupied.includes(n));
+    if (valid.length === 0) break;
+    cur = valid[Math.floor(Math.random() * valid.length)];
+    path.push(cur);
+  }
+  return path;
 }

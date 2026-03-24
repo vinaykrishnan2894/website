@@ -1,64 +1,63 @@
 // config.js — All tunable parameters for Save the Farm
-// Edit these values to tweak game balance without touching game logic
 
 const CONFIG = {
-  // Game duration
-  GAME_DURATION: 120, // seconds (2 minutes)
-  COUNTDOWN_DURATION: 3, // seconds before game starts
+  GAME_DURATION: 120,      // seconds (2 minutes)
+  COUNTDOWN_DURATION: 3,
+  SPAWN_GRACE_PERIOD: 2.0, // G5: seconds before first pest spawns after GO
 
   // Grid
   GRID_COLS: 4,
   GRID_ROWS: 4,
-  TILE_SIZE: 90,       // base tile size in px (scaled responsively)
-  TILE_PADDING: 8,     // gap between tiles
-  TILE_RADIUS: 14,     // rounded corner radius
+  TILE_SIZE: 90,
+  TILE_PADDING: 8,
+  TILE_RADIUS: 14,
 
-  // Dog
-  DOG_SPEED: 0.3,      // seconds per tile distance
+  // Dog — C5: actually used now
+  DOG_SPEED_PX: 220,       // px/sec travel speed
   DOG_BARK_DURATION: 0.7,
-  DOG_RETURN_SPEED: 0.15, // tiles/sec toward center (slower, relaxed)
 
   // Pest timers (seconds before damage)
   PEST_TIMERS: {
     crow:    2.5,
     mole:    2.0,
     cricket: 3.0,
-    rabbit:  1.5,  // after settling
+    rabbit:  1.8,  // slightly more forgiving after settling
   },
 
-  // Pest points
+  // Pest points — G7: cricket boosted to 30 (covers 2 tiles)
   PEST_POINTS: {
     crow:    10,
     mole:    15,
-    cricket: 20,
+    cricket: 30,
     rabbit:  25,
   },
 
-  // Rabbit hops before settling
-  RABBIT_HOP_COUNT: { min: 2, max: 3 },
-  RABBIT_HOP_INTERVAL: 0.7, // seconds per hop
+  // Rabbit
+  RABBIT_HOP_COUNT:    { min: 2, max: 3 },
+  RABBIT_HOP_INTERVAL: 0.65,
 
   // Crop health
   CROP_HP: 3,
 
   // Scoring
   SURVIVING_CROP_BONUS: 30,
-  PERFECT_CROP_BONUS: 10,  // extra per undamaged crop
+  PERFECT_CROP_BONUS:   10,
 
-  // Combo system
-  COMBO_WINDOW: 1.5,       // seconds to chain combos
-  COMBO_RESET: 3.0,        // seconds of inactivity to reset
-  COMBO_THRESHOLDS: [3, 6, 10], // combo counts to reach x2, x3, x4
+  // Combo — G4: wider window so combo feels achievable
+  COMBO_WINDOW:     2.2,   // seconds between arrivals to chain
+  COMBO_RESET:      3.5,
+  COMBO_THRESHOLDS: [3, 6, 10],
 
-  // Reward thresholds
+  // G3: Reward thresholds rebalanced for 2-min game
+  // Typical good run: ~400–700 pest pts + crop bonus
   REWARDS: [
     { name: 'Perfect', score: 900, pct: 20, crops: 8, cosmetic: 'Golden Scarecrow' },
-    { name: 'Gold',    score: 700, pct: 15, crops: 8 },
-    { name: 'Silver',  score: 500, pct: 10, crops: 5 },
-    { name: 'Bronze',  score: 300, pct: 5,  crops: 3 },
+    { name: 'Gold',    score: 600, pct: 15, crops: 8 },
+    { name: 'Silver',  score: 400, pct: 10, crops: 5 },
+    { name: 'Bronze',  score: 200, pct: 5,  crops: 3 },
   ],
 
-  // Spawn phases (scaled for 2 min game)
+  // Spawn phases (2 min)
   PHASES: [
     { startTime: 0,  endTime: 30,  interval: 3.0, maxSimul: 1, types: ['crow', 'mole'] },
     { startTime: 30, endTime: 60,  interval: 2.2, maxSimul: 1, types: ['crow', 'mole', 'cricket'] },
@@ -66,22 +65,20 @@ const CONFIG = {
     { startTime: 90, endTime: 120, interval: 1.0, maxSimul: 3, types: ['crow', 'mole', 'cricket', 'rabbit'] },
   ],
 
-  // Cricket swarm covers 2 adjacent tiles
   CRICKET_TILE_COUNT: 2,
 
-  // Animation durations (seconds)
   ANIM: {
-    PEST_SPAWN:    0.3,
-    PEST_FLEE:     0.5,
-    SCORE_POPUP:   1.0,
-    CROP_SHAKE:    0.4,
-    BARK_BUBBLE:   0.7,
-    COMBO_PULSE:   0.4,
-    RESULTS_SLIDE: 0.6,
-    COUNTDOWN_SCALE: 0.8,
+    PEST_SPAWN:      0.3,
+    PEST_FLEE:       0.5,
+    SCORE_POPUP:     1.0,
+    CROP_SHAKE:      0.4,
+    BARK_BUBBLE:     0.7,
+    COMBO_PULSE:     0.4,
+    RESULTS_SLIDE:   0.6,
+    TAP_RIPPLE:      0.35, // V8: tile tap ripple
+    GAMEOVER_FLASH:  0.5,  // G6: crop-death flash
   },
 
-  // Colours (FarmVille 3 palette)
   COLORS: {
     skyTop:    '#87CEEB',
     skyBot:    '#E8F4FD',
@@ -106,6 +103,5 @@ const CONFIG = {
     hpRed:     '#D9534F',
   },
 
-  // Sound (set to false to disable)
   SOUND_ENABLED: true,
 };

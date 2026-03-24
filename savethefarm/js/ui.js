@@ -144,15 +144,18 @@ class UI {
     ctx.font = `bold 13px 'Fredoka One', cursive`;
     ctx.textAlign = 'center';
     ctx.fillText('$', x + 22, y + h / 2 + 5);
-    // Score
-    ctx.fillStyle = CONFIG.COLORS.textHead;
-    ctx.font = `bold 20px 'Fredoka One', cursive`;
-    ctx.textAlign = 'left';
-    ctx.fillText(Math.round(this.displayScore), x + 42, y + h / 2 + 7);
+    // V6 fix: scale font down for large numbers
+    const scoreStr  = String(Math.round(this.displayScore));
+    const scoreFont = scoreStr.length > 4 ? 15 : scoreStr.length > 3 ? 17 : 20;
+    ctx.fillStyle   = CONFIG.COLORS.textHead;
+    ctx.font        = `bold ${scoreFont}px 'Fredoka One', cursive`;
+    ctx.textAlign   = 'left';
+    ctx.fillText(scoreStr, x + 42, y + h / 2 + 7);
   }
 
   _drawTimer(ctx, cx, cy) {
-    const r = 30;
+    // U4 fix: scale timer radius with canvas width
+    const r = Math.max(26, Math.min(36, this.canvas.width / this.canvas.height > 1.5 ? 22 : 30));
     const frac = Math.max(0, this.timeLeft / this.totalTime);
     const isWarning = this.timeLeft <= 15 && this.timeLeft > 0;
     const pulseAlpha = isWarning ? 0.5 + Math.sin(this.timerPulse) * 0.5 : 0;
@@ -262,7 +265,8 @@ class UI {
     ctx.fillRect(0, 0, cw, ch);
 
     const panelW = Math.min(cw - 40, 400);
-    const panelH = 480;
+    // B6 fix: clamp panel height to screen height with padding
+    const panelH = Math.min(480, ch - 60);
     const panelX = (cw - panelW) / 2;
     // Slide in from bottom
     const panelY = ch - (panelH + 30) * slide;

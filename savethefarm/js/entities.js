@@ -1089,30 +1089,43 @@ function _roundRect(ctx, x, y, w, h, r) {
 // ─────────────────────────────────────────────
 // CROP TILE ENTITY
 // ─────────────────────────────────────────────
+
+// ─────────────────────────────────────────────
+// CROP TILE ENTITY
+// ─────────────────────────────────────────────
 class CropTile {
   constructor(col, row, cropType, stage = 2) {
-    this.col = col;
-    this.row = row;
+    this.col      = col;
+    this.row      = row;
     this.cropType = cropType;
-    this.stage = stage;
-    this.maxHp = CONFIG.CROP_HP;
-    this.hp = this.maxHp;
-    this.damaged = false;
-    this.dead = false;
-    this.startHp = this.maxHp;
+    this.stage    = stage;
+    this.maxHp    = CONFIG.CROP_HP;
+    this.hp       = this.maxHp;
+    this.damaged  = false;
+    this.dead     = false;
     this.shakeTime = 0;
-    this.shakeX = 0;
-    // 3D perspective offset (tiles lower on screen lean slightly toward viewer)
-    this.perspectiveScale = 1;
+    this.shakeX    = 0;
+    // V8: tap ripple
+    this.rippleTime  = 0;
+    this.rippleAlpha = 0;
+    // G6: damage flash
+    this.flashTime   = 0;
   }
 
   takeDamage() {
     if (this.dead) return;
-    this.hp = Math.max(0, this.hp - 1);
+    this.hp      = Math.max(0, this.hp - 1);
     this.damaged = this.hp < this.maxHp;
-    this.dead = this.hp === 0;
+    this.dead    = this.hp === 0;
     this.shakeTime = CONFIG.ANIM.CROP_SHAKE;
+    this.flashTime = CONFIG.ANIM.GAMEOVER_FLASH;
     if (this.stage > 0) this.stage = Math.max(0, this.stage - 1);
+  }
+
+  // V8: called by game when player taps this tile
+  triggerRipple() {
+    this.rippleTime  = CONFIG.ANIM.TAP_RIPPLE;
+    this.rippleAlpha = 0.7;
   }
 
   update(dt) {
@@ -1121,27 +1134,29 @@ class CropTile {
       this.shakeX = Math.sin(this.shakeTime * 40) * 5 * (this.shakeTime / CONFIG.ANIM.CROP_SHAKE);
       if (this.shakeTime <= 0) this.shakeX = 0;
     }
+    if (this.rippleTime > 0) {
+      this.rippleTime -= dt;
+      this.rippleAlpha = (this.rippleTime / CONFIG.ANIM.TAP_RIPPLE) * 0.7;
+    }
+    if (this.flashTime > 0) this.flashTime -= dt;
   }
 
   draw(ctx, px, py, tileSize) {
+    ctx.save(); // C6: isolate tile draw state
     const ts = tileSize;
-    const x = px + this.shakeX;
-    const y = py;
+    const x  = px + this.shakeX;
+    const y  = py;
 
-    // ── 3D ISOMETRIC TILE ──────────────────────
-    // Top face (slightly visible, giving illusion of depth)
-    const topH = Math.round(ts * 0.22); // how tall the top face appears
-    const skew = Math.round(ts * 0.08); // horizontal skew for isometric
+    // 3D tile faces
+    const topH = Math.max(6, Math.round(ts * 0.18));
+    const skew = Math.max(3, Math.round(ts * 0.08));
 
-    // Top face color (lighter = catches light)
-    if (this.dead) {
-      ctx.fillStyle = '#B09878';
-    } else {
-      const hpFrac = this.hp / this.maxHp;
-      if (hpFrac > 0.66) ctx.fillStyle = '#D8B870';
-      else if (hpFrac > 0.33) ctx.fillStyle = '#C4A055';
-      else ctx.fillStyle = '#B08840';
-    }
+    // Top face
+    const hpFrac = this.hp / this.maxHp;
+    if (this.dead) ctx.fillStyle = '#B09878';
+    else if (hpFrac > 0.66) ctx.fillStyle = '#D8B870';
+    else if (hpFrac > 0.33) ctx.fillStyle = '#C4A055';
+    else ctx.fillStyle = '#B08840';
     ctx.beginPath();
     ctx.moveTo(x + skew, y);
     ctx.lineTo(x + ts + skew, y);
@@ -1151,80 +1166,111 @@ class CropTile {
     ctx.fill();
 
     // Front face
-    if (this.dead) {
-      ctx.fillStyle = CONFIG.COLORS.tileDead;
-    } else {
-      const hpFrac = this.hp / this.maxHp;
-      if (hpFrac > 0.66) ctx.fillStyle = CONFIG.COLORS.tileBase;
-      else if (hpFrac > 0.33) ctx.fillStyle = '#B89050';
-      else ctx.fillStyle = '#A07840';
-    }
+    if (this.dead) ctx.fillStyle = CONFIG.COLORS.tileDead;
+    else if (hpFrac > 0.66) ctx.fillStyle = CONFIG.COLORS.tileBase;
+    else if (hpFrac > 0.33) ctx.fillStyle = '#B89050';
+    else ctx.fillStyle = '#A07840';
     ctx.strokeStyle = CONFIG.COLORS.tileBorder;
     ctx.lineWidth = 1.5;
     _roundRect(ctx, x, y + topH, ts, ts - topH, CONFIG.TILE_RADIUS * 0.7);
     ctx.fill();
     ctx.stroke();
 
-    // Soil furrow lines on front face
+    // Soil furrows
     ctx.strokeStyle = 'rgba(0,0,0,0.07)';
     ctx.lineWidth = 1.5;
     for (let i = 0; i < 2; i++) {
-      const fy = y + topH + 16 + i * 18;
+      const fy = y + topH + 14 + i * 16;
       ctx.beginPath();
-      ctx.moveTo(x + 10, fy);
-      ctx.quadraticCurveTo(x + ts / 2, fy + 4, x + ts - 10, fy);
+      ctx.moveTo(x + 8, fy);
+      ctx.quadraticCurveTo(x + ts / 2, fy + 3, x + ts - 8, fy);
       ctx.stroke();
     }
 
-    // Right side face (dark, gives 3D box feel)
+    // Right side shadow
     ctx.fillStyle = 'rgba(0,0,0,0.14)';
     ctx.beginPath();
     ctx.moveTo(x + ts, y + topH);
     ctx.lineTo(x + ts + skew, y);
-    ctx.lineTo(x + ts + skew, y + topH - 2);
-    ctx.lineTo(x + ts, y + topH * 2 - 2);
+    ctx.lineTo(x + ts + skew, y + topH - 1);
+    ctx.lineTo(x + ts, y + topH * 2 - 1);
     ctx.closePath();
     ctx.fill();
 
-    // Crop sprite — anchored to front-face center, slightly above bottom
+    // Damage flash overlay (G6)
+    if (this.flashTime > 0) {
+      const alpha = (this.flashTime / CONFIG.ANIM.GAMEOVER_FLASH) * 0.45;
+      ctx.fillStyle = `rgba(255,50,0,${alpha})`;
+      _roundRect(ctx, x, y + topH, ts, ts - topH, CONFIG.TILE_RADIUS * 0.7);
+      ctx.fill();
+    }
+
+    // Crop sprite
     if (!this.dead) {
       const cropCX = x + ts / 2 + skew * 0.15;
       const cropCY = y + topH + (ts - topH) * 0.85;
       Sprites.drawCrop(ctx, cropCX, cropCY, ts, this.cropType, this.stage, this.damaged);
     } else {
-      // Dead tile: withered stump
-      const cx = x + ts / 2;
-      const cy = y + topH + (ts - topH) * 0.65;
+      // V5: better dead tile — cross + wilted leaves instead of rectangle
+      const cx = x + ts / 2 + skew * 0.1;
+      const cy = y + topH + (ts - topH) * 0.6;
+      // Brown stump
       ctx.fillStyle = '#6B4E2E';
-      ctx.beginPath();
-      ctx.rect(cx - 3, cy - 10, 6, 22);
+      _roundRect(ctx, cx - 3, cy - 8, 6, 20, 2);
       ctx.fill();
-      ctx.fillStyle = '#8B6040';
+      // Wilted drooping leaves
+      ctx.strokeStyle = '#5A7A30';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.ellipse(cx, cy - 10, 8, 5, 0, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(cx, cy - 8);
+      ctx.quadraticCurveTo(cx - 14, cy - 18, cx - 10, cy - 28);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 8);
+      ctx.quadraticCurveTo(cx + 14, cy - 18, cx + 10, cy - 28);
+      ctx.stroke();
+      // X mark
+      ctx.strokeStyle = 'rgba(200,40,0,0.6)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx - 8, cy - 4);
+      ctx.lineTo(cx + 8, cy + 12);
+      ctx.moveTo(cx + 8, cy - 4);
+      ctx.lineTo(cx - 8, cy + 12);
+      ctx.stroke();
     }
 
-    // HP dots — below the tile
-    const dotR = 4;
-    const dotSpacing = 12;
-    const dotsWidth = (this.maxHp - 1) * dotSpacing;
-    const dotStartX = x + ts / 2 - dotsWidth / 2;
-    const dotY = y + ts - 4;
+    // HP dots
+    const dotR = Math.max(3, Math.round(tileSize * 0.05));
+    const dotSpacing = dotR * 3;
+    const dotsWidth  = (this.maxHp - 1) * dotSpacing;
+    const dotStartX  = x + ts / 2 - dotsWidth / 2;
+    const dotY       = y + ts - dotR - 2;
     for (let i = 0; i < this.maxHp; i++) {
-      let color;
-      if (i < this.hp) {
-        if (this.hp === this.maxHp) color = CONFIG.COLORS.hpGreen;
-        else if (this.hp === 2) color = CONFIG.COLORS.hpYellow;
-        else color = CONFIG.COLORS.hpRed;
-      } else {
-        color = 'rgba(0,0,0,0.25)';
-      }
+      const filled = i < this.hp;
+      const color  = !filled ? 'rgba(0,0,0,0.2)'
+        : this.hp === this.maxHp ? CONFIG.COLORS.hpGreen
+        : this.hp === 2          ? CONFIG.COLORS.hpYellow
+        : CONFIG.COLORS.hpRed;
       ctx.fillStyle = color;
       ctx.beginPath();
       ctx.arc(dotStartX + i * dotSpacing, dotY, dotR, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    // V8: tap ripple ring
+    if (this.rippleAlpha > 0) {
+      const progress = 1 - this.rippleTime / CONFIG.ANIM.TAP_RIPPLE;
+      const r = ts * 0.3 + progress * ts * 0.4;
+      ctx.strokeStyle = `rgba(255,255,255,${this.rippleAlpha})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(x + ts / 2, y + topH + (ts - topH) / 2, r, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    ctx.restore();
   }
 }
 
@@ -1233,138 +1279,123 @@ class CropTile {
 // ─────────────────────────────────────────────
 class Dog {
   constructor(x, y) {
-    this.x = x;
-    this.y = y;
-    this.targetX = x;
-    this.targetY = y;
-    this.state = 'idle';
-    this.animTime = 0;
-    this.barkTime = 0;
+    this.x         = x;
+    this.y         = y;
+    this.targetX   = x;
+    this.targetY   = y;
+    this.state     = 'idle';
+    this.animTime  = 0;
+    this.barkTime  = 0;
     this.barkBubbleAlpha = 0;
-    this.size = 70;
+    this.size      = 70;
     this.dustParticles = [];
-    this.centerX = x;
-    this.centerY = y;
+    this.centerX   = x;
+    this.centerY   = y;
     this.onArrival = null;
-    // Queue — stores pending targets so dog never gets confused
     this.moveQueue = [];
-    this._moving = false;
+    // B1 fix: track *arrival* time for combo, not tap time
+    this.lastArrivalTime = -999; // game-clock seconds at last successful chase arrival
   }
 
-  // Clear queue and move directly to new target
   moveTo(tx, ty, onArrival) {
+    // Cancel any pending queue, go directly to new target
     this.moveQueue = [{ tx, ty, onArrival }];
     this._startNextMove();
   }
 
   _startNextMove() {
-    if (this.moveQueue.length === 0) {
-      this._moving = false;
-      return;
-    }
-    const next = this.moveQueue.shift();
-    this.targetX = next.tx;
-    this.targetY = next.ty;
-    this.onArrival = next.onArrival;
-    this.state = 'running';
-    this._moving = true;
+    if (this.moveQueue.length === 0) return;
+    const next      = this.moveQueue.shift();
+    this.targetX    = next.tx;
+    this.targetY    = next.ty;
+    this.onArrival  = next.onArrival;
+    this.state      = 'running';
   }
 
   bark() {
-    this.state = 'barking';
-    this.barkTime = CONFIG.DOG_BARK_DURATION;
+    this.barkTime        = CONFIG.DOG_BARK_DURATION;
     this.barkBubbleAlpha = 1;
+    // C3 fix: single place sets barking state
+    this.state = 'barking';
   }
 
   update(dt) {
     this.animTime += dt;
 
     if (this.state === 'running') {
-      const dx = this.targetX - this.x;
-      const dy = this.targetY - this.y;
+      const dx   = this.targetX - this.x;
+      const dy   = this.targetY - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      const speed = 200; // px/s — fast enough to always feel snappy
+      const speed = CONFIG.DOG_SPEED_PX; // C5 fix: use config value
       if (dist < speed * dt + 2) {
         this.x = this.targetX;
         this.y = this.targetY;
-        // Fire arrival callback
         if (this.onArrival) {
           const cb = this.onArrival;
           this.onArrival = null;
           cb();
         }
         this.bark();
-        // Dust burst on arrival
+        // Dust burst
         for (let i = 0; i < 6; i++) {
           this.dustParticles.push({
             x: this.x + (Math.random() - 0.5) * 20,
-            y: this.y + 20,
+            y: this.y + 18,
             vx: (Math.random() - 0.5) * 60,
             vy: -Math.random() * 40 - 10,
             life: 0.5, maxLife: 0.5,
-            r: Math.random() * 5 + 3
+            r: Math.random() * 5 + 2
           });
         }
-        // Continue queue or go idle
-        if (this.moveQueue.length > 0) {
-          this._startNextMove();
-        } else {
-          this.state = 'barking';
-          this._moving = false;
-        }
+        if (this.moveQueue.length > 0) this._startNextMove();
       } else {
-        const nx = dx / dist;
-        const ny = dy / dist;
-        this.x += nx * speed * dt;
-        this.y += ny * speed * dt;
-        // Running dust
-        if (Math.random() < 0.25) {
+        this.x += (dx / dist) * speed * dt;
+        this.y += (dy / dist) * speed * dt;
+        // Trail dust
+        if (Math.random() < 0.2) {
           this.dustParticles.push({
             x: this.x + (Math.random() - 0.5) * 10,
-            y: this.y + 22,
-            vx: (Math.random() - 0.5) * 20,
-            vy: -Math.random() * 15 - 5,
+            y: this.y + 20,
+            vx: (Math.random() - 0.5) * 18,
+            vy: -Math.random() * 12 - 4,
             life: 0.25, maxLife: 0.25,
-            r: Math.random() * 3 + 2
+            r: Math.random() * 3 + 1.5
           });
         }
       }
     } else if (this.state === 'barking') {
-      if (this.barkTime <= 0) {
-        this.state = 'idle';
-      }
+      if (this.barkTime <= 0) this.state = 'idle';
     } else if (this.state === 'idle') {
-      // Slowly drift back toward center
-      const dx = this.centerX - this.x;
-      const dy = this.centerY - this.y;
+      const dx   = this.centerX - this.x;
+      const dy   = this.centerY - this.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > 5) {
-        const speed = 50;
-        this.x += (dx / dist) * speed * dt;
-        this.y += (dy / dist) * speed * dt;
+        this.x += (dx / dist) * 50 * dt;
+        this.y += (dy / dist) * 50 * dt;
       }
     }
 
     if (this.barkTime > 0) {
       this.barkTime -= dt;
       this.barkBubbleAlpha = Math.min(1, this.barkTime / 0.3);
+      if (this.barkTime < 0) this.barkTime = 0;
     }
 
-    // Update dust particles
     this.dustParticles = this.dustParticles.filter(p => {
       p.life -= dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.vy += 80 * dt;
+      p.x    += p.vx * dt;
+      p.y    += p.vy * dt;
+      p.vy   += 80 * dt;
       return p.life > 0;
     });
   }
 
   draw(ctx) {
-    // Dust particles
+    ctx.save(); // C6: isolate dog draw state
+    // Dust
     this.dustParticles.forEach(p => {
       ctx.globalAlpha = (p.life / p.maxLife) * 0.5;
-      ctx.fillStyle = '#D4A84A';
+      ctx.fillStyle   = '#D4A84A';
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
       ctx.fill();
@@ -1373,30 +1404,30 @@ class Dog {
 
     Sprites.drawDog(ctx, this.x, this.y, this.size, this.state, this.animTime);
 
-    // Bark speech bubble
+    // Bark bubble — V7 fix: position relative to dog size
     if (this.barkBubbleAlpha > 0) {
-      ctx.save();
       ctx.globalAlpha = this.barkBubbleAlpha;
-      const bx = this.x - 16;
-      const by = this.y - 65;
-      ctx.fillStyle = '#FFF';
+      const bubbleOffset = this.size * 0.85;
+      const bx = this.x - this.size * 0.18;
+      const by = this.y - bubbleOffset;
+      ctx.fillStyle   = '#FFF';
       ctx.strokeStyle = '#DDD';
-      ctx.lineWidth = 2;
-      _roundRect(ctx, bx - 32, by - 22, 78, 30, 12);
+      ctx.lineWidth   = 2;
+      _roundRect(ctx, bx - 36, by - 22, 84, 30, 12);
       ctx.fill(); ctx.stroke();
-      // Bubble tail
       ctx.beginPath();
       ctx.moveTo(bx - 4, by + 8);
-      ctx.lineTo(bx - 12, by + 22);
-      ctx.lineTo(bx + 6, by + 8);
+      ctx.lineTo(bx - 14, by + 22);
+      ctx.lineTo(bx + 8, by + 8);
       ctx.fillStyle = '#FFF';
       ctx.fill();
-      ctx.fillStyle = CONFIG.COLORS.textHead;
-      ctx.font = `bold 15px 'Fredoka One', cursive`;
-      ctx.textAlign = 'center';
-      ctx.fillText('WOOF! 🐾', bx + 7, by - 2);
-      ctx.restore();
+      ctx.globalAlpha = this.barkBubbleAlpha;
+      ctx.fillStyle   = CONFIG.COLORS.textHead;
+      ctx.font        = `bold 14px 'Fredoka One', cursive`;
+      ctx.textAlign   = 'center';
+      ctx.fillText('WOOF! 🐾', bx + 6, by - 2);
     }
+    ctx.restore();
   }
 }
 
@@ -1405,31 +1436,32 @@ class Dog {
 // ─────────────────────────────────────────────
 class Pest {
   constructor(type, tileIndex, tileX, tileY, tileSize) {
-    this.type = type;
-    this.tileIndex = tileIndex;
-    this.x = tileX + tileSize / 2;
-    this.y = tileY + tileSize / 2;
-    this.tileSize = tileSize;
-    this.timer = CONFIG.PEST_TIMERS[type];
-    this.maxTimer = this.timer;
-    this.alive = true;
-    this.fleeing = false;
-    this.fleeTime = 0;
+    this.type       = type;
+    this.tileIndex  = tileIndex;
+    this.x          = tileX + tileSize / 2;
+    this.y          = tileY + tileSize / 2;
+    this.tileSize   = tileSize;
+    this.timer      = CONFIG.PEST_TIMERS[type];
+    this.maxTimer   = this.timer;
+    this.alive      = true;
+    this.fleeing    = false;
+    this.fleeTime   = 0;
     this.fleeMaxTime = CONFIG.ANIM.PEST_FLEE;
-    this.spawnTime = 0;
+    this.spawnTime   = 0;
     this.spawnMaxTime = CONFIG.ANIM.PEST_SPAWN;
-    this.animTime = 0;
-    this.scale = 0;
-    this.size = 50;
+    this.animTime   = 0;
+    this.scale      = 0;
+    this.size       = 50;
 
-    this.isHopping = false;
-    this.settled = false;
-    this.hopCount = 0;
-    this.hopTimer = 0;
-    this.maxHops = Math.floor(Math.random() * (CONFIG.RABBIT_HOP_COUNT.max - CONFIG.RABBIT_HOP_COUNT.min + 1)) + CONFIG.RABBIT_HOP_COUNT.min;
+    // Rabbit state (managed by Spawner for G8 hop path)
+    this.isHopping  = false;
+    this.settled    = false;
+    this.hopPath    = [tileIndex];
+    this.hopPathIdx = 0;
+    this.hopTimer   = 0;
 
-    this.flyInY = type === 'crow' ? -60 : this.y;
-    this.startY = this.y;
+    this.flyInY  = type === 'crow' ? -60 : this.y;
+    this.startY  = this.y;
 
     this.secondaryTileIndex = null;
 
@@ -1441,17 +1473,18 @@ class Pest {
   }
 
   startFlee() {
-    this.fleeing = true;
+    this.fleeing  = true;
     this.fleeTime = this.fleeMaxTime;
-    this.alive = false;
-    const count = this.type === 'crow' ? 5 : this.type === 'mole' ? 4 : 3;
+    this.alive    = false;
+    const count   = this.type === 'crow' ? 5 : 3;
     for (let i = 0; i < count; i++) {
       this.particles.push({
         x: this.x, y: this.y,
-        vx: (Math.random() - 0.5) * 120,
-        vy: (Math.random() - 0.5) * 120 - 60,
+        vx: (Math.random() - 0.5) * 130,
+        vy: (Math.random() - 0.5) * 130 - 50,
         life: 0.6, maxLife: 0.6,
-        color: this.type === 'crow' ? '#1A1A2E' : this.type === 'mole' ? '#C4A35A' : '#4CAF50',
+        color: this.type === 'crow' ? '#1A1A2E'
+             : this.type === 'mole' ? '#C4A35A' : '#4CAF50',
         r: Math.random() * 4 + 2
       });
     }
@@ -1460,6 +1493,7 @@ class Pest {
   update(dt) {
     this.animTime += dt;
 
+    // Spawn scale-in
     if (this.spawnTime < this.spawnMaxTime) {
       this.spawnTime += dt;
       const t = this.spawnTime / this.spawnMaxTime;
@@ -1468,27 +1502,13 @@ class Pest {
       this.scale = 1;
     }
 
+    // Crow fly-in
     if (this.type === 'crow' && this.spawnTime < this.spawnMaxTime) {
       const t = this.spawnTime / this.spawnMaxTime;
       this.y = this.flyInY + (this.startY - this.flyInY) * t;
     }
 
-    if (this.type === 'rabbit' && !this.settled && this.alive) {
-      this.hopTimer -= dt;
-      if (this.hopTimer <= 0) {
-        this.hopCount++;
-        this.isHopping = false;
-        if (this.hopCount >= this.maxHops) {
-          this.settled = true;
-          this.timer = CONFIG.PEST_TIMERS.rabbit;
-          this.maxTimer = this.timer;
-        } else {
-          this.hopTimer = CONFIG.RABBIT_HOP_INTERVAL;
-          this.isHopping = true;
-        }
-      }
-    }
-
+    // B2 fix: rabbit timer only ticks after settled (managed by spawner)
     if (this.alive && this.scale >= 0.9 && (this.type !== 'rabbit' || this.settled)) {
       this.timer -= dt;
     }
@@ -1501,34 +1521,29 @@ class Pest {
 
     this.particles = this.particles.filter(p => {
       p.life -= dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.vy += 80 * dt;
+      p.x    += p.vx * dt;
+      p.y    += p.vy * dt;
+      p.vy   += 80 * dt;
       return p.life > 0;
     });
   }
 
-  get isDone() {
-    return this.fleeing && this.fleeTime <= 0 && this.particles.length === 0;
-  }
-
-  get timerFrac() {
-    return Math.max(0, this.timer / this.maxTimer);
-  }
+  get isDone()     { return this.fleeing && this.fleeTime <= 0 && this.particles.length === 0; }
+  get timerFrac()  { return Math.max(0, this.timer / this.maxTimer); }
 
   draw(ctx) {
+    ctx.save(); // C6: isolate pest draw state
     this.particles.forEach(p => {
       ctx.globalAlpha = p.life / p.maxLife;
-      ctx.fillStyle = p.color;
+      ctx.fillStyle   = p.color;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
       ctx.fill();
     });
     ctx.globalAlpha = 1;
 
-    if (!this.alive && !this.fleeing) return;
+    if (!this.alive && !this.fleeing) { ctx.restore(); return; }
 
-    ctx.save();
     ctx.translate(this.x, this.y);
     ctx.scale(this.scale, this.scale);
 
@@ -1539,20 +1554,30 @@ class Pest {
       case 'rabbit':  Sprites.drawRabbit(ctx, 0, 0, this.size, this.animTime, this.isHopping); break;
     }
 
+    // V4 fix: timer ring drawn ABOVE pest (offset upward), not centred on it
     if (this.alive && this.scale > 0.5 && (this.type !== 'rabbit' || this.settled)) {
-      const r = 32;
-      const frac = this.timerFrac;
-      ctx.strokeStyle = 'rgba(0,0,0,0.2)';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.arc(0, 0, r, 0, Math.PI * 2);
-      ctx.stroke();
-      const color = frac > 0.5 ? '#5CB85C' : frac > 0.25 ? '#F0AD4E' : '#D9534F';
+      const ringY  = -this.size * 0.72; // above the sprite
+      const r      = 14;
+      const frac   = this.timerFrac;
+      const color  = frac > 0.5 ? '#5CB85C' : frac > 0.25 ? '#F0AD4E' : '#D9534F';
+      // Background
+      ctx.fillStyle   = 'rgba(0,0,0,0.35)';
+      ctx.beginPath(); ctx.arc(0, ringY, r + 2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle   = '#FFF';
+      ctx.beginPath(); ctx.arc(0, ringY, r, 0, Math.PI * 2); ctx.fill();
+      // Timer arc
       ctx.strokeStyle = color;
-      ctx.lineWidth = 4;
+      ctx.lineWidth   = 4;
+      ctx.lineCap     = 'round';
       ctx.beginPath();
-      ctx.arc(0, 0, r, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
+      ctx.arc(0, ringY, r - 2, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
       ctx.stroke();
+      // Remaining seconds text
+      const secs = Math.ceil(this.timer);
+      ctx.fillStyle = frac > 0.5 ? '#3A4A5C' : '#C02020';
+      ctx.font      = `bold 10px 'Fredoka One', cursive`;
+      ctx.textAlign = 'center';
+      ctx.fillText(secs, 0, ringY + 4);
     }
 
     ctx.restore();
@@ -1564,30 +1589,28 @@ class Pest {
 // ─────────────────────────────────────────────
 class ScorePopup {
   constructor(x, y, text, color = '#F6D233') {
-    this.x = x;
-    this.y = y;
-    this.text = text;
-    this.color = color;
-    this.life = CONFIG.ANIM.SCORE_POPUP;
+    this.x       = x;
+    this.y       = y;
+    this.text    = text;
+    this.color   = color;
+    this.life    = CONFIG.ANIM.SCORE_POPUP;
     this.maxLife = this.life;
   }
-
-  update(dt) { this.life -= dt; }
-  get isDone() { return this.life <= 0; }
-
+  update(dt)    { this.life -= dt; }
+  get isDone()  { return this.life <= 0; }
   draw(ctx) {
     const t = this.life / this.maxLife;
     ctx.save();
     ctx.globalAlpha = t;
-    ctx.translate(this.x, this.y - (1 - t) * 40);
-    const scale = 0.8 + t * 0.4;
-    ctx.scale(scale, scale);
-    ctx.font = `bold 22px 'Fredoka One', cursive`;
-    ctx.textAlign = 'center';
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-    ctx.lineWidth = 4;
+    ctx.translate(this.x, this.y - (1 - t) * 45);
+    const sc = 0.7 + t * 0.5;
+    ctx.scale(sc, sc);
+    ctx.font        = `bold 22px 'Fredoka One', cursive`;
+    ctx.textAlign   = 'center';
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth   = 4;
     ctx.strokeText(this.text, 0, 0);
-    ctx.fillStyle = this.color;
+    ctx.fillStyle   = this.color;
     ctx.fillText(this.text, 0, 0);
     ctx.restore();
   }

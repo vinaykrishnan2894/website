@@ -19,9 +19,11 @@ class AudioManager {
   }
 
   _master(gain = 0.4) {
+    // C8 fix: auto-disconnect gain node after 2 seconds to prevent leak
     const g = this.ctx.createGain();
     g.gain.value = gain;
     g.connect(this.ctx.destination);
+    setTimeout(() => { try { g.disconnect(); } catch(e) {} }, 2000);
     return g;
   }
 
