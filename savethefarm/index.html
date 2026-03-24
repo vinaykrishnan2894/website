@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#87CEEB" />
+  <meta name="description" content="Save the Farm — A FarmVille-style crop protection minigame. Send Rex to chase away pests!" />
+  <title>Save the Farm 🐕</title>
+
+  <!-- FarmVille-style font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap" rel="stylesheet" />
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <!-- Main canvas — game renders entirely here -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- Pause button — HTML overlay so it stays accessible -->
+  <button id="pauseBtn" aria-label="Pause game" title="Pause">⏸</button>
+
+  <!-- Game scripts — order matters -->
+  <script src="js/config.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/spawner.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
