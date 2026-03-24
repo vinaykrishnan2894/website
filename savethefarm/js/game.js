@@ -172,11 +172,23 @@ class Game {
 
   // ── LIFECYCLE ────────────────────────────────────
   _fakeLoad() {
-    const duration = 1400;
+    const duration = 1600; // slightly longer to let sprites load
     const start    = performance.now();
+
+    // Kick off sprite preload in parallel
+    let spritesReady = false;
+    if (typeof loadSprites !== 'undefined') {
+      loadSprites(() => { spritesReady = true; });
+    } else {
+      spritesReady = true;
+    }
+
     const tick = () => {
-      this.loadProgress = Math.min(1, (performance.now() - start) / duration);
-      if (this.loadProgress < 1) requestAnimationFrame(tick);
+      const elapsed = performance.now() - start;
+      this.loadProgress = Math.min(1, elapsed / duration);
+      // Don't advance past 0.95 until sprites are loaded
+      if (!spritesReady) this.loadProgress = Math.min(0.92, this.loadProgress);
+      if (this.loadProgress < 1 || !spritesReady) requestAnimationFrame(tick);
       else setTimeout(() => { this.state = 'READY'; }, 80);
     };
     requestAnimationFrame(tick);

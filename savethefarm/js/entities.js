@@ -1455,7 +1455,7 @@ class Dog {
     ctx.translate(this.x, this.y);
     ctx.scale(scaleX, scaleY);
     ctx.translate(-this.x, -this.y);
-    Sprites.drawDog(ctx, this.x, this.y, this.size, this.state, this.animTime);
+    (typeof SpriteRenderer !== 'undefined' ? SpriteRenderer : Sprites).drawDog(ctx, this.x, this.y, this.size, this.state, this.animTime);
     ctx.restore();
 
     if (!this.facingRight) ctx.restore();
@@ -1650,10 +1650,10 @@ class Pest {
     ctx.scale(this.scale, this.scale);
 
     switch (this.type) {
-      case 'crow':    Sprites.drawCrow(ctx, 0, 0, this.size, this.animTime); break;
-      case 'mole':    Sprites.drawMole(ctx, 0, 0, this.size, this.animTime); break;
-      case 'cricket': Sprites.drawCricketSwarm(ctx, 0, 0, this.size, this.animTime); break;
-      case 'rabbit':  Sprites.drawRabbit(ctx, 0, 0, this.size, this.animTime, this.isHopping); break;
+      case 'crow':    (typeof SpriteRenderer !== 'undefined' ? SpriteRenderer : Sprites).drawCrow(ctx, 0, 0, this.size, this.animTime); break;
+      case 'mole':    (typeof SpriteRenderer !== 'undefined' ? SpriteRenderer : Sprites).drawMole(ctx, 0, 0, this.size, this.animTime); break;
+      case 'cricket': (typeof SpriteRenderer !== 'undefined' ? SpriteRenderer : Sprites).drawCricketSwarm(ctx, 0, 0, this.size, this.animTime); break;
+      case 'rabbit':  (typeof SpriteRenderer !== 'undefined' ? SpriteRenderer : Sprites).drawRabbit(ctx, 0, 0, this.size, this.animTime, this.isHopping); break;
     }
 
     // V4 fix + G4 fix: timer ring drawn ABOVE sprite, larger, readable
