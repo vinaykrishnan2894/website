@@ -1533,7 +1533,8 @@ class Pest {
     this.spawnMaxTime = CONFIG.ANIM.PEST_SPAWN;
     this.animTime  = 0;
     this.scale     = 0;
-    this.size      = 52;
+    this.size      = type === 'cricket' ? 42 : 52;
+    this.isCompanion = false;
 
     // Rabbit
     this.isHopping = false;
@@ -1550,8 +1551,9 @@ class Pest {
     this.secondaryTileIndex = null;
 
     // Flee vectors
-    this.fleeVx = (Math.random() - 0.5) * 220;
-    this.fleeVy = type === 'crow' ? -(280 + Math.random() * 80) : (Math.random() - 0.5) * 220;
+    const fleeMult = type === 'cricket' ? 1.5 : 1;
+    this.fleeVx = (Math.random() - 0.5) * 220 * fleeMult;
+    this.fleeVy = type === 'crow' ? -(280 + Math.random() * 80) : (Math.random() - 0.5) * 220 * fleeMult;
     if (type === 'mole') { this.fleeVy = 180 + Math.random() * 80; this.fleeVx = 0; }
     if (type === 'rabbit') { this.fleeVx = (Math.random() > 0.5 ? 1 : -1) * (180 + Math.random() * 60); this.fleeVy = -60; }
 

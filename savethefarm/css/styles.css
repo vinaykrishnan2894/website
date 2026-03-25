@@ -59,3 +59,51 @@ html, body {
 
 /* Prevent scroll/zoom on mobile */
 canvas { -webkit-touch-callout: none; }
+
+/* Safari safe-area inset support */
+@supports (padding: env(safe-area-inset-bottom)) {
+  #gameCanvas {
+    /* Offset canvas top/left for notch/home-bar safe areas */
+    top: env(safe-area-inset-top);
+    left: env(safe-area-inset-left);
+  }
+  #pauseBtn {
+    top: calc(14px + env(safe-area-inset-top));
+    right: calc(14px + env(safe-area-inset-right));
+  }
+}
+
+/* Landscape orientation warning overlay */
+#landscapeWarning {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(20, 30, 10, 0.94);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #fff;
+  font-family: 'Fredoka One', cursive, sans-serif;
+  text-align: center;
+  pointer-events: all;
+}
+#landscapeWarning .lw-icon {
+  font-size: 56px;
+  animation: lw-spin 1.8s ease-in-out infinite;
+}
+#landscapeWarning .lw-text {
+  font-size: clamp(18px, 5vw, 28px);
+  text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+}
+@keyframes lw-spin {
+  0%, 100% { transform: rotate(0deg); }
+  40%       { transform: rotate(90deg); }
+  60%       { transform: rotate(90deg); }
+}
+
+/* Show landscape warning when in landscape on small screens */
+@media (max-height: 500px) and (orientation: landscape) {
+  #landscapeWarning { display: flex; }
+}

@@ -101,6 +101,21 @@ class Spawner {
     }
 
     this.activePests.push(pest);
+
+    // Cricket swarm: spawn 2 companion crickets nearby with slight timing delay
+    if (type === 'cricket') {
+      [55, 110].forEach((delay, i) => {
+        setTimeout(() => {
+          if (!this.enabled) return;
+          const companion = new Pest('cricket', tileIndex, tile.px, tile.py, tile.tileSize);
+          const sign = i === 0 ? -1 : 1;
+          companion.x = pest.x + sign * (18 + Math.random() * 12);
+          companion.y = pest.y + (Math.random() - 0.5) * 22;
+          companion.isCompanion = true;
+          this.activePests.push(companion);
+        }, delay);
+      });
+    }
   }
 
   // B3 fix: dog goes to the TAPPED tile, but we match pest by either tile
@@ -110,6 +125,14 @@ class Spawner {
     );
     if (!pest) return null;
     pest.startFlee();
+    // Also scatter all other crickets on the same tile (companions + main)
+    if (pest.type === 'cricket') {
+      this.activePests.forEach(p => {
+        if (p !== pest && p.alive && p.type === 'cricket' && p.tileIndex === pest.tileIndex) {
+          p.startFlee();
+        }
+      });
+    }
     if (this._onPestChased) this._onPestChased(pest);
     return pest;
   }
@@ -164,6 +187,7 @@ class Spawner {
       p.alive    = false;
       p.fleeing  = true;
       p.fleeTime = p.fleeMaxTime;
+      if (p.isCompanion) return; // companions don't cause tile damage
       const tile = this.grid[p.tileIndex];
       if (tile) tile.takeDamage();
       if (p.secondaryTileIndex !== null) {

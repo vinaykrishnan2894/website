@@ -25,6 +25,12 @@
   <!-- Pause button — HTML overlay so it stays accessible -->
   <button id="pauseBtn" aria-label="Pause game" title="Pause">⏸</button>
 
+  <!-- Landscape orientation warning — shown via CSS media query -->
+  <div id="landscapeWarning" aria-live="polite">
+    <div class="lw-icon">📱</div>
+    <div class="lw-text">Rotate your phone to play!</div>
+  </div>
+
   <!-- Game scripts — order matters -->
   <script src="js/config.js"></script>
   <script src="js/audio.js"></script>
