@@ -23,6 +23,7 @@ class AudioManager {
     if (this._initialized) return;
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      this.ctx.resume(); // Some browsers start the context suspended
       this._initialized = true;
     } catch (e) {
       this.enabled = false;
@@ -55,6 +56,7 @@ class AudioManager {
 
   startMusic() {
     if (!this.enabled || !this.ctx || this._musicPlaying) return;
+    this.ctx.resume(); // ensure context is running after user gesture
     this._musicPlaying = true;
     this._musicTick    = 0;
     this._intensity    = 0;
@@ -62,7 +64,7 @@ class AudioManager {
     // Create master music bus
     this._musicGain = this.ctx.createGain();
     this._musicGain.gain.setValueAtTime(0, this.ctx.currentTime);
-    this._musicGain.gain.linearRampToValueAtTime(0.55, this.ctx.currentTime + 1.5);
+    this._musicGain.gain.linearRampToValueAtTime(0.35, this.ctx.currentTime + 1.5);
     this._musicGain.connect(this.ctx.destination);
 
     this._scheduleBeat();
@@ -92,8 +94,8 @@ class AudioManager {
     if (this._musicGain) {
       const t = this.ctx.currentTime;
       this._musicGain.gain.setValueAtTime(this._musicGain.gain.value, t);
-      this._musicGain.gain.linearRampToValueAtTime(0.38, t + 0.3);
-      this._musicGain.gain.linearRampToValueAtTime(0.58 + this._intensity * 0.06, t + 1.0);
+      this._musicGain.gain.linearRampToValueAtTime(0.28, t + 0.3);
+      this._musicGain.gain.linearRampToValueAtTime(0.36 + this._intensity * 0.03, t + 1.0);
     }
   }
 

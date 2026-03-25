@@ -1186,8 +1186,8 @@ class CropTile {
 
     // FRONT FACE
     ctx.fillStyle = frontColor;
-    ctx.strokeStyle = CONFIG.COLORS.tileBorder;
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(122,80,16,0.18)'; // very subtle border — soil feels natural, not grid-like
+    ctx.lineWidth = 1;
     _roundRect(ctx, x, y + topH, ts, ts - topH, CONFIG.TILE_RADIUS * 0.6);
     ctx.fill(); ctx.stroke();
 
@@ -1243,11 +1243,32 @@ class CropTile {
       const swayAngle = Math.sin(globalTime * 0.8 + this.swayOffset) * 0.025;
       const cropCX = x + ts / 2 + skew * 0.15;
       const cropCY = y + topH + (ts - topH) * 0.85;
+      // Ground shadow — elliptical, anchored at soil level for depth
+      ctx.save();
+      ctx.globalAlpha = 0.30;
+      ctx.fillStyle = '#3A1800';
+      ctx.beginPath();
+      ctx.ellipse(cropCX, cropCY + 3, ts * 0.38, ts * 0.085, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      // Crop sprite with sway
       ctx.save();
       ctx.translate(cropCX, cropCY);
       ctx.rotate(swayAngle);
       ctx.translate(-cropCX, -cropCY);
       Sprites.drawCrop(ctx, cropCX, cropCY, ts, this.cropType, this.stage, this.damaged);
+      ctx.restore();
+      // Top sheen — subtle radial highlight suggesting rounded 3D form
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      const _hlY = cropCY - ts * 0.30;
+      const _hlG = ctx.createRadialGradient(cropCX - ts * 0.04, _hlY - ts * 0.04, 0, cropCX, _hlY, ts * 0.20);
+      _hlG.addColorStop(0, 'rgba(255,255,255,1)');
+      _hlG.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = _hlG;
+      ctx.beginPath();
+      ctx.ellipse(cropCX, _hlY, ts * 0.20, ts * 0.12, 0, 0, Math.PI * 2);
+      ctx.fill();
       ctx.restore();
     } else {
       // V5: improved dead tile — wilted crop silhouette
